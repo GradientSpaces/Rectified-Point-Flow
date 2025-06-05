@@ -25,7 +25,7 @@
 We introduce Rectified Point Flow, a unified parameterization that formulates pairwise point cloud registration and multi-part shape assembly as a single conditional generative problem.
 <p align="center">
   <a href="">
-    <img src="https://rectified-pointflow.github.io/images/overview_flow_asm.png" width="90%">
+    <img src="https://rectified-pointflow.github.io/images/overview_flow_asm.png" width="100%">
   </a>
 </p>
 
