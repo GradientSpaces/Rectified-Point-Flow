@@ -22,7 +22,8 @@
     }
 ```
 
-We introduce Rectified Point Flow, a unified parameterization that formulates pairwise point cloud registration and multi-part shape assembly as a single conditional generative problem.
+We introduce Rectified Point Flow, a unified parameterization that formulates pairwise point cloud registration and multi-part shape assembly as a single conditional generative problem. Given unposed point clouds, our method learns a continuous point-wise velocity field that transports noisy points toward their target positions, from which part poses are recovered. In contrast to prior work that regresses part-wise poses with ad-hoc symmetry handling, our method intrinsically learns assembly symmetries without symmetry labels.
+
 <p align="center">
   <a href="">
     <img src="https://rectified-pointflow.github.io/images/overview_flow_asm.png" width="100%">
@@ -32,10 +33,16 @@ We introduce Rectified Point Flow, a unified parameterization that formulates pa
 
 ## 🛠️ Setup
 ### ✅ Tested Environments
-
+Our code has been tested on:
+- Ubuntu 22.04 LTS, Python 3.10.15, CUDA 12.2, GeForce RTX 4090
 
 ### 📦 Repository
 ```
 git clone git@github.com:GradientSpaces/Rectified-Point-Flow.git
 cd Rectified-Point-Flow
+```
+
+### 💻 Installation
+```
+
 ```
