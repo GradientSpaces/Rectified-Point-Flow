@@ -5,13 +5,13 @@
 
  Official implementation of our paper: Rectified Point Flow: Generic Point Cloud Pose Estimation.
 
-[Tao Sun](https://taosun.io/)<sup>1,\*</sup>,
-[Liyuan Zhu](https://www.zhuliyuan.net/)<sup>1,\*</sup>,
+[Tao Sun](https://taosun.io/) *<sup>,1</sup>,
+[Liyuan Zhu](https://www.zhuliyuan.net/) *<sup>,1</sup>,
 [Shengyu Huang](https://shengyuh.github.io/)<sup>2</sup>,
 [Shuran Song](https://shurans.github.io/)<sup>1</sup>,
 [Iro Armeni](https://ir0.github.io/)<sup>1</sup>
 
-<sup>1</sup>Stanford University, <sup>2</sup>NVIDIA Research | <sup>\*</sup> Equal contribution
+<sup>1</sup>Stanford University, <sup>2</sup>NVIDIA Research | * denotes equal contribution
 
 ```bibtex
 @inproceedings{sun2025_rpf,
