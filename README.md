@@ -31,18 +31,4 @@ We introduce Rectified Point Flow, a unified parameterization that formulates pa
 </p>
 
 
-## 🛠️ Setup
-### ✅ Tested Environments
-Our code has been tested on:
-- Ubuntu 22.04 LTS, Python 3.10.15, CUDA 12.2, GeForce RTX 4090
-
-### 📦 Repository
-```
-git clone git@github.com:GradientSpaces/Rectified-Point-Flow.git
-cd Rectified-Point-Flow
-```
-
-### 💻 Installation
-```
-
-```
+We plan to release the code in June 2025. Thank you for your patience.
