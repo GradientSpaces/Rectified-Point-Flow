@@ -1,4 +1,4 @@
-## Rectified Point Flow: Generic Point Cloud Pose Estimation
+# Rectified Point Flow: Generic Point Cloud Pose Estimation
 
  [![ProjectPage](https://img.shields.io/badge/Project_Page-RPF-blue)](https://rectified-pointflow.github.io/) [![arXiv](https://img.shields.io/badge/arXiv-2502.10377-blue?logo=arxiv&color=%23B31B1B)](https://arxiv.org/abs/) [![Hugging Face (LCM) Space](https://img.shields.io/badge/🤗%20Hugging%20Face%20-Space-yellow)](https://huggingface.co/gradient-spaces) [![License](https://img.shields.io/badge/License-Apache--2.0-929292)](https://www.apache.org/licenses/LICENSE-2.0)
 
@@ -13,15 +13,6 @@
 
 <sup>1</sup>Stanford University, <sup>2</sup>NVIDIA Research | * denotes equal contribution
 
-```bibtex
-@inproceedings{sun2025_rpf,
-      author = {Tao Sun and Liyuan Zhu and Shengyu Huang and Shuran Song and Iro Armeni},
-      title = {Rectified Point Flow: Generic Point Cloud Pose Estimation},
-      booktitle = {arxiv preprint},
-      year = {2025},
-    }
-```
-
 We introduce Rectified Point Flow, a unified parameterization that formulates pairwise point cloud registration and multi-part shape assembly as a single conditional generative problem. Given unposed point clouds, our method learns a continuous point-wise velocity field that transports noisy points toward their target positions, from which part poses are recovered. In contrast to prior work that regresses part-wise poses with ad-hoc symmetry handling, our method intrinsically learns assembly symmetries without symmetry labels.
 
 <p align="center">
@@ -32,3 +23,14 @@ We introduce Rectified Point Flow, a unified parameterization that formulates pa
 
 
 We plan to release the code in June 2025. Thank you for your patience.
+
+
+## BiBTeX
+```bibtex
+@inproceedings{sun2025_rpf,
+      author = {Tao Sun and Liyuan Zhu and Shengyu Huang and Shuran Song and Iro Armeni},
+      title = {Rectified Point Flow: Generic Point Cloud Pose Estimation},
+      booktitle = {arxiv preprint},
+      year = {2025},
+    }
+```
