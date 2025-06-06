@@ -30,7 +30,7 @@ We plan to release the code in June 2025. Thank you for your patience.
 @inproceedings{sun2025_rpf,
       author = {Tao Sun and Liyuan Zhu and Shengyu Huang and Shuran Song and Iro Armeni},
       title = {Rectified Point Flow: Generic Point Cloud Pose Estimation},
-      booktitle = {arxiv preprint},
+      booktitle = {arxiv preprint arXiv:2506.05282},
       year = {2025},
     }
 ```
