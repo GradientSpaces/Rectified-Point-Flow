@@ -1,0 +1,13 @@
+# Python
+__pycache__
+*.pyc
+
+# Output
+/output
+/outputs
+/logs
+/weights
+
+# OS
+.DS_Store
+

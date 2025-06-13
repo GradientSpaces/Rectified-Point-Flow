@@ -1,0 +1,25 @@
+_target_: rectified_point_flow.encoder.PointCloudEncoder
+pc_feat_dim: 64
+
+encoder:
+  _target_: rectified_point_flow.encoder.pointtransformerv3.PointTransformerV3Objcentric
+  stride: [2, 2, 2, 2]
+  enc_depths: [2, 2, 2, 6, 2]
+  enc_num_head: [2, 4, 8, 16, 32]
+  enc_patch_size: [1024, 1024, 1024, 1024, 1024]
+  enc_channels: [32, 64, 128, 256, 512]
+  dec_depths: [2, 2, 2, 2]
+  dec_num_head: [4, 4, 8, 16]
+  dec_patch_size: [1024, 1024, 1024, 1024]
+  dec_channels: [64, 64, 128, 256]
+
+optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: True
+  lr: 1e-4
+  weight_decay: 1e-5
+
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+  _partial_: True
+  T_0: 100

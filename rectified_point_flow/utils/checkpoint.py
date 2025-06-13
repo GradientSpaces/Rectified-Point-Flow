@@ -1,0 +1,85 @@
+from typing import List, Dict
+import random
+
+import numpy as np
+import torch
+
+
+# Checkpoint Loading
+
+def load_checkpoint_for_module(
+    module: torch.nn.Module,
+    checkpoint_path: str,
+    prefix_to_remove: str = None,
+    prefix_to_substitute: dict = None,
+    prefix_to_add: str = None,
+    strict: bool = False,
+) -> dict:
+    """Load checkpoint for a PyTorch module with prefix editing.
+    
+    Args:
+        module: The PyTorch module to load the checkpoint into
+        checkpoint_path: Path to the checkpoint file
+        prefix_to_remove: Prefix to remove from checkpoint keys (e.g., "module.")
+        prefix_to_substitute: Prefix to substitute in checkpoint keys (e.g., {"encoder.": "feature_extractor."})
+        prefix_to_add: Prefix to add to checkpoint keys (e.g., "encoder.")
+        strict: Whether to strictly enforce that keys match
+        
+    Returns:
+        Result dictionary from load_state_dict operation
+    """        
+    state_dict = torch.load(
+        checkpoint_path, map_location="cpu", weights_only=False,
+    )["state_dict"]
+    
+    # Handle prefix removal
+    if prefix_to_remove is not None:
+        state_dict = {
+            k.replace(prefix_to_remove, ""): v 
+            for k, v in state_dict.items() 
+            if k.startswith(prefix_to_remove)
+        }
+    
+    # Handle prefix substitution
+    if prefix_to_substitute is not None:
+        for old_prefix, new_prefix in prefix_to_substitute.items():
+            state_dict = {
+                k.replace(old_prefix, new_prefix): v 
+                for k, v in state_dict.items()
+            }
+    
+    # Handle prefix addition
+    if prefix_to_add is not None:
+        state_dict = {f"{prefix_to_add}{k}": v for k, v in state_dict.items()}
+    
+    # Load the state dict
+    load_result = module.load_state_dict(state_dict, strict=strict)
+    print(f"Loaded checkpoint: {checkpoint_path}. Result: {load_result}")        
+    return load_result
+
+# RNG State Saving and Loading
+
+def get_rng_state():
+    """Get the RNG state."""
+    return {
+        "python": random.getstate(),
+        "numpy": np.random.get_state(),
+        "torch_cpu": torch.get_rng_state(),
+        "torch_cuda": torch.cuda.get_rng_state_all(),
+    }
+
+def set_rng_state(state: dict):
+    """Set the RNG state."""
+    random.setstate(state["python"])
+    np.random.set_state(state["numpy"])
+    torch.set_rng_state(state["torch_cpu"])
+    cuda_states_num = len(torch.cuda.get_rng_state_all())
+    if len(state["torch_cuda"]) != cuda_states_num:
+        print(
+            f"Warning: Expected {cuda_states_num} CUDA states, but found {len(state['torch_cuda'])} in checkpoint."
+        )
+        used_state_num = min(cuda_states_num, len(state["torch_cuda"]))
+    else:
+        used_state_num = cuda_states_num
+    torch.cuda.set_rng_state_all(state["torch_cuda"][:used_state_num])
+    print("RNG state restored from checkpoint.")

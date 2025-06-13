@@ -1,0 +1,19 @@
+_target_: rectified_point_flow.data.PointCloudDataModule
+num_points_to_sample: 5000
+min_parts: 2
+max_parts: 64
+min_points_per_part: 20
+multi_ref: true
+
+dataset_paths:
+  ikea: "${data_root}/ikea.hdf5"
+  partnet_v0: "${data_root}/partnet.hdf5"
+  everyday: "${data_root}/breaking_bad_vol.hdf5"
+  twobytwo: "${data_root}/2by2.hdf5"
+  "modelnet": "${data_root}/modelnet.hdf5"
+  "tudl": "${data_root}/tudl.hdf5"
+
+dataset_names: ["ikea", "partnet_v0", "everyday", "twobytwo", "modelnet", "tudl"]
+
+batch_size: 8
+num_workers: 8
