@@ -1,8 +1,10 @@
 _target_: lightning.pytorch.Trainer
 
-accelerator: "gpu"
-devices: 1
+accelerator: auto
+devices: auto
+strategy: ddp
 precision: "16-mixed"
+default_root_dir: ${log_dir}
 
 max_epochs: 2000
 gradient_clip_val: 0.3
