@@ -7,8 +7,7 @@ precision: "16-mixed"
 max_epochs: 2000
 gradient_clip_val: 0.3
 accumulate_grad_batches: 1
-check_val_every_n_epoch: 1
-num_sanity_val_steps: 2
+check_val_every_n_epoch: 10
 
 callbacks:
   - _target_: lightning.pytorch.callbacks.ModelCheckpoint
@@ -17,8 +16,8 @@ callbacks:
     auto_insert_metric_name: False
     save_last: True
     save_top_k: 1
-    monitor: eval/overall_acc
-    mode: max
+    monitor: val/object_cd
+    mode: min
     every_n_epochs: 1
     save_on_train_epoch_end: True
     enable_version_counter: False

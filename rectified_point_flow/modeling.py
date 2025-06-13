@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .eval.evaluation_runner import EvaluationRunner
+from .eval.evaluator import Evaluator
 from .utils.checkpoint import load_checkpoint_for_module, set_rng_state, get_rng_state
 from .utils.metrics import MetricsHandler
 
@@ -55,7 +55,7 @@ class RectifiedPointFlow(L.LightningModule):
         # Initialize
         self.freeze_feature_extractor()
         self.metrics_handler = MetricsHandler(self)
-        self.evaluation_runner = EvaluationRunner(self)
+        self.evaluator = Evaluator(self)
 
     def freeze_feature_extractor(self):
         """Ensure feature extractor stays in eval mode."""
@@ -126,7 +126,6 @@ class RectifiedPointFlow(L.LightningModule):
     def forward(self, data_dict: dict):
         """Forward pass for training using rectified flow."""
         B, P = data_dict["points_per_part"].shape
-        N = data_dict["pointclouds_gt"].shape[1]
         part_valids = data_dict["points_per_part"] != 0
 
         # Extract features
@@ -155,7 +154,6 @@ class RectifiedPointFlow(L.LightningModule):
             scale=data_dict["scale"][part_valids],
             ref_part=data_dict["ref_part"][part_valids],
         )
-
         return {
             "v_pred": v_pred,
             "v_target": v_target,
@@ -177,10 +175,27 @@ class RectifiedPointFlow(L.LightningModule):
 
     def training_step(self, data_dict: dict, batch_idx: int):
         """Training step."""
-        output_dict = self(data_dict)
-        loss_dict = self.loss(output_dict)
+        loss_dict = self.loss(self(data_dict))
         self.log_metrics(loss_dict)
         return loss_dict["mse_loss"]
+
+    def validation_step(self, data_dict: dict, batch_idx: int):
+        """Validation step."""
+        loss_dict = self.loss(self(data_dict))
+
+        eval_results = self.evaluator.run_evaluation(data_dict, save_results=False)
+        self.metrics_handler.add_metrics(dataset_names=data_dict['dataset_name'], **eval_results)
+        loss_dict.update({k: v.mean() for k, v in eval_results.items()})
+        return loss_dict
+
+    def test_step(self, data_dict: dict, batch_idx: int):
+        """Test step with comprehensive evaluation."""
+        loss_dict = self.loss(self(data_dict))
+
+        eval_results = self.evaluator.run_evaluation(data_dict, save_results=True)
+        self.metrics_handler.add_metrics(dataset_names=data_dict['dataset_name'], **eval_results)
+        loss_dict.update({k: v.mean() for k, v in eval_results.items()})
+        return loss_dict
 
     def sample_rectified_flow(
         self, 
@@ -230,27 +245,7 @@ class RectifiedPointFlow(L.LightningModule):
         if return_tarjectory:
             return trajectory
         return x_t
-
-    def validation_step(self, data_dict: dict, batch_idx: int):
-        """Validation step with evaluation."""
-        output_dict = self(data_dict)
-        loss_dict = self.loss(output_dict)
-
-        eval_results = self.evaluation_runner.run_validation_evaluation(data_dict)
-        self.metrics_handler.add_metrics(dataset_names=data_dict['dataset_name'], **eval_results)
-        loss_dict.update(eval_results)
-        return loss_dict
-
-    def test_step(self, data_dict: dict, batch_idx: int):
-        """Test step with comprehensive evaluation."""
-        output_dict = self(data_dict)
-        loss_dict = self.loss(output_dict)
-
-        eval_results = self.evaluation_runner.run_test_evaluation(data_dict)
-        self.metrics_handler.add_metrics(dataset_names=data_dict['dataset_name'], **eval_results)
-        loss_dict.update(eval_results)
-        return loss_dict
-
+    
     def on_train_epoch_start(self):
         super().on_train_epoch_start()
         self.freeze_feature_extractor()
@@ -300,7 +295,6 @@ class RectifiedPointFlow(L.LightningModule):
 
 if __name__ == "__main__":
     # Test the model
-
     from .encoder.pointtransformerv3 import PointTransformerV3Objcentric
     from .encoder import PointCloudEncoder
     from .flow_model import PointCloudDiT
@@ -326,17 +320,4 @@ if __name__ == "__main__":
         optimizer=torch.optim.AdamW,
         lr_scheduler=lr_scheduler,
     )
-
     print(rectified_point_flow)
-
-    load_checkpoint_for_module(
-        rectified_point_flow,
-        "weights/last.ckpt",
-        prefix_to_substitute={"denoiser.": "flow_model.", "coarse_segmenter.": "overlap_head.", "mlp_out_trans.": "final_mlp.", "shape_embedding.": "encoding_manager.emb_proj.", "timestep_embbedder.": "timestep_embedder."},
-        strict=False,
-    )
-
-    # save the model
-    torch.save({
-        "state_dict": rectified_point_flow.state_dict(),
-    }, "weights/RPF_base_joint.ckpt")

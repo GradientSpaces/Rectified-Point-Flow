@@ -1,15 +1,17 @@
+"""Evaluation utilities for Rectified Point Flow."""
+
 import os
 import json
 import torch
 import pytorch3d.transforms as transforms
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
 
 from .shape_error import compute_shape_errors, compute_pose_errors
 from .rigid_transform import fit_rigid_transform
 
 
-class EvaluationRunner:
-    """Reusable evaluation logic for validation and test steps."""
+class Evaluator:
+    """Handles evaluation and result saving for Rectified Point Flow."""
     
     def __init__(self, model, num_steps: int = 20):
         self.model = model
@@ -38,7 +40,7 @@ class EvaluationRunner:
         )
         return x_final
     
-    def _initialize_sampling(self, data_dict: Dict[str, Any], part_valids: torch.Tensor, batch_indices: torch.Tensor):
+    def _initialize_sampling(self, data_dict: dict, part_valids: torch.Tensor, batch_indices: torch.Tensor):
         """Initialize sampling with random noise and anchor points."""
         x0 = torch.randn_like(data_dict["pointclouds_gt"])
         x0 = x0.reshape(-1, 3)
@@ -54,7 +56,6 @@ class EvaluationRunner:
         unflattened[part_valids] = tensor
         return unflattened
 
-    
     def compute_metrics(
         self, 
         data_dict: Dict[str, Any], 
@@ -66,12 +67,10 @@ class EvaluationRunner:
         pts = data_dict["pointclouds"]
         gt_trans = data_dict["translations"][part_valids]
         gt_rots = data_dict["quaternions"][part_valids]
-        
-        # Compute pose metrics
         B, N = pts.shape[:2]
-        x_final = x_final.reshape(B, N, 3).detach()
-        
+
         # Fit rigid transformation
+        x_final = x_final.reshape(B, N, 3).detach()
         rot_hats, trans_hats = fit_rigid_transform(pts, x_final, points_per_part)
         pred_rots = transforms.matrix_to_quaternion(rot_hats[part_valids])
         pred_trans = trans_hats[part_valids]
@@ -80,13 +79,10 @@ class EvaluationRunner:
         rot_errors, trans_errors = compute_pose_errors(
             gt_trans, gt_rots, pred_trans, pred_rots, part_valids
         )
-        
         # Compute shape metrics
         part_acc, shape_cd, object_cd = compute_shape_errors(
-            pts, gt_trans, gt_rots, pred_trans, pred_rots,
-            points_per_part, part_valids
+            pts, gt_trans, gt_rots, pred_trans, pred_rots, points_per_part, part_valids
         )
-
         return {
             "part_acc": part_acc,
             "rot_error": rot_errors,
@@ -95,45 +91,24 @@ class EvaluationRunner:
             "object_cd": object_cd,
         }
     
-    def _save_single_result(self, data_dict: Dict[str, Any], metrics: Dict[str, torch.Tensor], index: int):
+    def _save_single_result(self, data_dict: dict, metrics: dict, index: int):
         """Save a single result to JSON."""
         data = {
             "name": data_dict["name"][index],
             "num_parts": data_dict["num_parts"][index].item(),
-            "part_acc": metrics["part_acc"][index].item(),
-            "trans_error": metrics["trans_error"][index].item(),
-            "rot_error": metrics["rot_error"][index].item(),
-            "shape_cd": metrics["shape_cd"][index].item(),
-            "object_cd": metrics["object_cd"][index].item(),
-            "mesh_scale": data_dict["mesh_scale"][index].item(),
+            **{k: v[index].item() for k, v in metrics.items()},
         }
-        save_dir = os.path.join(self.model.trainer.log_dir, "json_results")
+        save_dir = os.path.join(self.model.trainer.log_dir, "results")
         os.makedirs(save_dir, exist_ok=True)
         json.dump(data, open(os.path.join(save_dir, f"{data_dict['index'][index].item()}.json"), "w"))
     
-    def save_json_results(self, data_dict: Dict[str, Any], metrics: Dict[str, torch.Tensor]):
-        """Save results to JSON files."""
-        if not self.model.inference_config.get("write_to_json", True):
-            return
-            
-        B = data_dict["points_per_part"].shape[0]
-        for b in range(B):
-            self._save_single_result(data_dict, metrics, b)
-    
-    def run_evaluation(self, data_dict: Dict[str, Any], save_results: bool = False) -> Dict[str, torch.Tensor]:
+    def run_evaluation(self, data_dict: dict, save_results: bool = False) -> dict:
         """Run evaluation with optional result saving."""
         x_final = self.sample(data_dict)
         metrics = self.compute_metrics(data_dict, x_final)
+
         if save_results:
-            self.save_json_results(data_dict, metrics)
+            B = data_dict["points_per_part"].shape[0]
+            for batch_idx in range(B):
+                self._save_single_result(data_dict, metrics, batch_idx)
         return metrics
-    
-    def run_validation_evaluation(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
-        """Run validation evaluation."""
-        metrics = self.run_evaluation(data_dict, save_results=False)
-        return metrics
-    
-    def run_test_evaluation(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
-        """Run test evaluation with comprehensive metrics."""
-        return self.run_evaluation(data_dict, save_results=True)
-        
