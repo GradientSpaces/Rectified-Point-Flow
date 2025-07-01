@@ -219,7 +219,7 @@ python train.py --config-name "RPF_base_main" \
 
 ## 🐛 Troubleshooting
 
-**Slow dataset I/O**: We find that the flow model training can be bound by the I/O. This typically leads to a low GPU utilization (e.g., < 80%). We've optimized the setting based on our systems (one node of 8xH100 with 112 CPU cores) and you may need to adjust based on your environments. Here are the recommendations:
+**Slow I/O**: We find that the flow model training can be bound by the I/O. This typically leads to a low GPU utilization (e.g., < 80%). We've optimized the setting based on our systems (one node of 8xH100 with 112 CPU cores) and you may need to adjust your own settings. Here are some suggestions:
 
 - More threads per worker: Modify `num_threads=2` in [rectified_point_flow/data/dataset.py](rectified_point_flow/data/dataset.py).
 - More workers per GPU: Set `data.num_workers=32` or higher based on your CPU cores.
