@@ -33,7 +33,7 @@ git clone https://github.com/GradientSpaces/Rectified-Point-Flow.git
 cd Rectified-Point-Flow
 ```
 
-Then, you can create a Python 3.10 virtual environment. We provide an [`install_dep.sh`](install_dep.sh) script that can be used to install all dependencies that we used for development.
+We provide an [`install_dep.sh`](install_dep.sh) script to install all dependencies that we used for development.
 
 ```bash
 conda create -n py310-rpf python=3.10
@@ -43,7 +43,7 @@ bash install_dep.sh
 
 This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7.4`. We've tested it on NVIDIA RTX4090/A100/H100 GPUs with CUDA 12.4.
 
-## 📦 Demo
+## ✨  Demo
 
 You can sample assembled objects from unposed parts using our trained RPF models with [`sample.py`](sample.py).  To sample from demo data, please run:
 
