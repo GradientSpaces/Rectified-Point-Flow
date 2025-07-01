@@ -1,0 +1,27 @@
+# Main configuration for Rectified Point Flow training
+
+defaults:
+  - model: rectified_point_flow
+  - data: ikea_partnet_everyday_twobytwo_modelnet_tudl
+  - trainer: main
+  - loggers: wandb
+  - _self_
+
+# Random seed for reproducibility
+seed: 42
+
+# Data root
+data_root: "../dataset"
+
+# Experiment name and log directory
+experiment_name: RPF_base
+log_dir: ./output/${experiment_name}
+ckpt_path: ${log_dir}/last.ckpt
+hydra:
+  run:
+    dir: ${log_dir}
+
+# Define pretrained checkpoints
+model:
+  encoder_ckpt: null
+  flow_model_ckpt: null

@@ -1,0 +1,28 @@
+# Pretraining configuration for Rectified Point Flow
+
+defaults:
+  - model: encoder/ptv3_object
+  - data: ikea_partnet_everyday_twobytwo_modelnet_tudl_objverse
+  - trainer: pretrain
+  - loggers: wandb
+  - _self_
+
+# Random seed for reproducibility
+seed: 42
+
+# Data root
+data_root: "../dataset"
+
+# Experiment name and log directory
+experiment_name: "RPF_base_pretrain"
+log_dir: ./output/${experiment_name}
+ckpt_path: ${log_dir}/last.ckpt
+hydra:
+  run:
+    dir: ${log_dir}
+
+model:
+  compute_overlap_points: true
+
+data:
+  limit_val_samples: 1000

@@ -1,0 +1,41 @@
+# Main configuration for Rectified Point Flow training
+
+defaults:
+  - model: rectified_point_flow
+  - data: ikea_partnet_everyday_twobytwo_modelnet_tudl
+  - trainer: main
+  - loggers: wandb
+  - visualizer: default
+  - _self_
+  - override hydra/hydra_logging: disabled
+
+# Disable hydra logging
+hydra:
+  verbose: false
+  output_subdir: null
+  run:
+    dir: .
+
+# Demo data
+data_root: ./demo/data
+data:
+  dataset_names: []  # [] means using all datasets in the data_root
+  batch_size: 1
+  num_workers: 1
+
+# Log directory
+log_dir: ./demo/
+
+# Checkpoint path
+ckpt_path: ./weights/RPF_base.ckpt
+
+# Define pretrained checkpoints
+model:
+  encoder_ckpt: null
+  flow_model_ckpt: null
+
+# Visualizer
+visualizer:
+  image_size: 512
+  # NOTE: Rendering trajectory as a gif will be slow!
+  save_trajectory: false

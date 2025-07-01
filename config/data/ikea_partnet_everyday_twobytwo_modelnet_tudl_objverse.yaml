@@ -1,0 +1,13 @@
+_target_: rectified_point_flow.data.PointCloudDataModule
+num_points_to_sample: 5000
+min_parts: 2
+max_parts: 64
+min_points_per_part: 20
+multi_anchor: true
+
+data_root: ${data_root}
+dataset_names: ["ikea", "partnet_v0", "everyday", "twobytwo", "modelnet", "tudl", "objaverse_v1"]
+
+batch_size: 4
+num_workers: 2
+limit_val_samples: 0  # 0 for all samples
