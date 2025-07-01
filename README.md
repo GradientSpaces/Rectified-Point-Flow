@@ -51,6 +51,8 @@ To sample from demo data using the trained RPF model, please run:
 python sample.py data_root="./demo/data" log_dir="./demo/"
 ```
 
+Add `visualizer.save_trajectory=true` to save the animation of the flow trajectory as a GIF, but note that the rendering is slow.
+
 **Custom checkpoints.** If you've trained a new RPF model with [`train.py`](train.py) (see [below](#training)), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 
 
 ```bash
@@ -106,8 +108,8 @@ python train.py --config-name "RPF_base_main" \
 
 ### Custom Datasets
 
-Our codebase supports two data formats: PLY files and HDF5 archives. We provide scripts to convert between the two formats.
-Please refer to the [dataset_process](dataset_process/) for more details.
+Our codebase supports two data formats: PLY files and HDF5 archives. We strongly recommend using HDF5 format for faster I/O.
+We provide scripts to help convert between these two formats. For details, please refer to [dataset_process/](dataset_process/).
 
 
 ### Configurations

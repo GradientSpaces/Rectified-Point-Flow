@@ -14,5 +14,5 @@ camera_fov: 45.0
 
 # Trajectory GIF settings
 save_trajectory: true
-trajectory_gif_fps: 25
+trajectory_gif_fps: 30
 trajectory_gif_pause_last_frame: 1.0
