@@ -8,9 +8,9 @@ colormap: default
 image_size: 256
 point_radius: 0.015
 camera_dist: 4.0
-camera_elev: 20.0
-camera_azim: 60.0
-camera_fov: 40.0
+camera_elev: 30.0
+camera_azim: 150.0
+camera_fov: 35.0
 
 # Trajectory GIF settings
 save_trajectory: true
