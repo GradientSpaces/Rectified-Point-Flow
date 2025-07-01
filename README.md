@@ -56,7 +56,7 @@ This saves the condition and generated point cloud renderings as PNGs.
 
 **Renderer:** By default, we use [PyTorch3D's PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) for fast rendering. For higher quality ray-traced renderings (as shown above), please render with [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) by adding prefix `USE_MITSUBA=1` to commands.
 
-**Flow Animation:** To save the flow trajectory as a GIF, please add `visualizer.save_trajectory=true` argument; note that this will be slow. See [config/visualizer](configs/visualizer) for more options.
+**Flow Animation:** To save the flow trajectory as a GIF, please add `visualizer.save_trajectory=true` argument; note that this will be slow. See [config/visualizer](config/visualizer) for more options.
 
 **Custom Checkpoints:** If you've trained a new RPF model with [`train.py`](train.py) (see below), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 
 
