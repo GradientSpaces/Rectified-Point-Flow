@@ -63,6 +63,36 @@ data_root/
   ```
 - We **stronly recommend** using HDF5 for training due to efficiency in multi-process reading and reduced file count in the storage.
 
+## Format Conversion
+
+### 1. Convert PLY Files to HDF5
+
+We provide a lightweight script to convert PLY files to the HDF5 format, as follows:
+
+```bash
+python convert_ply_to_h5.py \
+    --data_root     "data_root/" \
+    --dataset_name  "dataset_name" \
+    --output_path   "data_root_h5/dataset_name.hdf5"
+```
+
+**For large-scale datasets:** Please refer to `convert_objverse_to_h5.py`, which we use to convert the [Objaverse](https://objaverse.allenai.org/) dataset efficiently by parallel computing. You may reuse its functions for your own dataset.
+
+### 2. Export HDF5 to PLY Files
+
+We also provide a script to export HDF5 datasets back to PLY format for inspection, visualization, or editing, as follows:
+
+```bash
+python export_ply_from_h5.py \
+    --data_root          "data_root_h5/" \
+    --output_dir         "./demo/data/" \
+    --samples_per_split  10 \
+    --datasets           "ikea" "partnet_v0"
+```
+
+This example exports the 10 samples from `ikea` and `partnet_v0` datasets to the `demo/data` directory.
+
+
 ## Loading Datasets
 
 The `PointCloudDataset` class automatically detects the format and handles both, as follows:
@@ -96,33 +126,3 @@ dataset_paths:
   partnet_v0: "${data_root}/partnet.hdf5"  # HDF5 format
 dataset_names: ["ikea", "partnet_v0"]
 ```
-
-## Format Conversion
-
-### 1. Convert PLY Files to HDF5
-
-We provide a lightweight script to convert PLY files to the HDF5 format, as follows:
-
-```bash
-python convert_ply_to_h5.py \
-    --data_root     "data_root/" \
-    --dataset_name  "dataset_name" \
-    --output_path   "data_root_h5/dataset_name.hdf5"
-```
-
-**For large-scale datasets:** Please refer to `convert_objverse_to_h5.py`, which we use to convert the [Objaverse](https://objaverse.allenai.org/) dataset efficiently by parallel computing. You may reuse its functions for your own dataset.
-
-### 2. Export HDF5 to PLY Files
-
-We also provide a script to export HDF5 datasets back to PLY format for inspection, visualization, or editing, as follows:
-
-```bash
-python export_ply_from_h5.py \
-    --data_root          "data_root_h5/" \
-    --output_dir         "./demo/data/" \
-    --samples_per_split  10 \
-    --datasets           "ikea" "partnet_v0"
-```
-
-This example exports the 10 samples from `ikea` and `partnet_v0` datasets to the `demo/data` directory.
-

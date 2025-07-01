@@ -2,8 +2,6 @@
 
 [![ProjectPage](https://img.shields.io/badge/Project_Page-RPF-blue)](https://rectified-pointflow.github.io/) [![arXiv](https://img.shields.io/badge/arXiv-2506.05282-blue?logo=arxiv&color=%23B31B1B)](https://arxiv.org/abs/2506.05282) [![Hugging Face (LCM) Space](https://img.shields.io/badge/🤗%20Hugging%20Face%20-Space-yellow)](https://huggingface.co/gradient-spaces/Rectified-Point-Flow) [![License](https://img.shields.io/badge/License-Apache--2.0-929292)](https://www.apache.org/licenses/LICENSE-2.0)
 
-**_TL;DR:_** *Assemble unposed parts into complete objects by learning a point-wise flow model.* 
-
 [Tao Sun](https://taosun.io/) *<sup>,1</sup>,
 [Liyuan Zhu](https://www.zhuliyuan.net/) *<sup>,1</sup>,
 [Shengyu Huang](https://shengyuh.github.io/)<sup>2</sup>,
@@ -11,6 +9,9 @@
 [Iro Armeni](https://ir0.github.io/)<sup>1</sup>
 
 <sup>1</sup>Stanford University, <sup>2</sup>NVIDIA Research | * denotes equal contribution
+
+
+**_TL;DR:_** *Assemble unposed parts into complete objects by learning a point-wise flow model.* 
 
 
 ## Overview
@@ -25,7 +26,7 @@ We introduce **Rectified Point Flow** (RPF), a unified parameterization that for
 
 ## Setup
 
-First, download and set up the repo:
+First, please download and set up the repo:
 
 ```bash
 git clone https://github.com/GradientSpaces/Rectified-Point-Flow.git
@@ -44,8 +45,7 @@ This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7
 
 ## Demo
 
-You can sample assembled objects from unposed parts using our trained RPF models with [`sample.py`](sample.py). 
-The checkpoint for a trained model will be automatically downloaded to the `weights/` folder.  To sample from demo data, please run:
+You can sample assembled objects from unposed parts using our trained RPF models with [`sample.py`](sample.py).  To sample from demo data, please run:
 
 ```bash
 python sample.py data_root="./demo/data" log_dir="./demo/"
@@ -54,7 +54,7 @@ python sample.py data_root="./demo/data" log_dir="./demo/"
 **Custom checkpoints.** If you've trained a new RPF model with [`train.py`](train.py) (see [below](#training)), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 
 
 ```bash
-python sample.py ckpt_path="./path/to/RPF.ckpt"  data_root="./demo/data" log_dir="./demo/RPF"
+python sample.py data_root="./demo/data" log_dir="./demo/RPF" ckpt_path="RPF.ckpt" 
 ```
 
 You can browse or download checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/tree/main) as well.
