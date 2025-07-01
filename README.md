@@ -250,7 +250,7 @@ If you find the code or data useful for your research, please cite our paper:
 
 ## Acknowledgments
 
-Some codes borrow from open-source projects, including [DiT](https://github.com/facebookresearch/DiT), [PointTransformer](https://github.com/Pointcept/Pointcept), and [GARF](https://github.com/ai4ce/GARF). We thank their valuable contributions!
+Some codes in this repo are borrowed from open-source projects, including [DiT](https://github.com/facebookresearch/DiT), [PointTransformer](https://github.com/Pointcept/Pointcept), and [GARF](https://github.com/ai4ce/GARF). We appreciate their valuable contributions!
 
 
 ## License
