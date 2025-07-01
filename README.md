@@ -24,16 +24,16 @@ We introduce **Rectified Point Flow** (RPF), a unified parameterization that for
   </a>
 </p>
 
-## Setup
+## 🛠️ Setup
 
-First, please download and set up the repo:
+First, please clone the repo:
 
 ```bash
 git clone https://github.com/GradientSpaces/Rectified-Point-Flow.git
 cd Rectified-Point-Flow
 ```
 
-We provide an [`install_dep.sh`](install_dep.sh) script that can be used to install all dependencies that we used for development. You can create a Python 3.10 virtual environment and run this script, as:
+Then, you can create a Python 3.10 virtual environment. We provide an [`install_dep.sh`](install_dep.sh) script that can be used to install all dependencies that we used for development.
 
 ```bash
 conda create -n py310-rpf python=3.10
@@ -43,7 +43,7 @@ bash install_dep.sh
 
 This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7.4`. We've tested it on NVIDIA RTX4090/A100/H100 GPUs with CUDA 12.4.
 
-## Demo
+## 📦 Demo
 
 You can sample assembled objects from unposed parts using our trained RPF models with [`sample.py`](sample.py).  To sample from demo data, please run:
 
@@ -60,7 +60,7 @@ python sample.py data_root="./demo/data" log_dir="./demo/RPF" ckpt_path="RPF.ckp
 You can browse or download checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/tree/main) as well.
 
 
-## Training
+## 🚀 Training
 
 The RPF training process consists of two stages:
 1. **Encoder Pretraining**: Train the point cloud encoder on the overlap point detection task.
@@ -102,7 +102,7 @@ python train.py --config-name "RPF_base_main" \
 - `data.batch_size`: Batch size per GPU. Defaults to 40 for 80GB GPU.
 
 
-## More Details
+## 📚 More Details
 
 ### Custom Datasets
 
@@ -217,7 +217,7 @@ python train.py --config-name "RPF_base_main" \
 </details>
 
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
 **Slow dataset I/O**: We find that the flow model training can be bound by the I/O. This typically leads to a low GPU utilization (e.g., < 80%). We've optimized the setting based on our systems (one node of 8xH100 with 112 CPU cores) and you may need to adjust based on your environments. Here are the recommendations:
 
@@ -228,14 +228,14 @@ python train.py --config-name "RPF_base_main" \
 
 **Loss overflow**: We do find some numerical instability during training, especially loss overflow to NaN. If you encounter this when training, you may try to use `bf16` precision by adding `trainer.precision=bf16`.
 
-## Todo List
+## ☑️ Todo List
 - [x] Release model & demo code
-- [ ] Release full training code
+- [ ] Release full training code & checkpoints
 - [ ] Release processed dataset files
 - [ ] Support running without flash-attn
 - [ ] Online demo
 
-## Citation
+## 📝 Citation
 
 If you find the code or data useful for your research, please cite our paper:
 
