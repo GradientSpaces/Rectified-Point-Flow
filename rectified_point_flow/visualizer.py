@@ -4,107 +4,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 import lightning as L
-import matplotlib.cm as cm
 import torch
 from lightning.pytorch.callbacks import Callback
-from PIL import Image
-from pytorch3d.renderer import (
-    AlphaCompositor,
-    FoVPerspectiveCameras,
-    PointsRasterizationSettings,
-    PointsRasterizer,
-    PointsRenderer,
-    look_at_view_transform,
-)
-from pytorch3d.structures import Pointclouds
 
-from .utils import ppp_to_ids
-
-
-def generate_part_colors(part_ids: torch.Tensor, colormap: str = "Set2") -> torch.Tensor:
-    """Generate colors for parts based on part IDs.
-    
-    Args:
-        part_ids: Tensor of shape (N,) containing part IDs for each point.
-        colormap: Name of matplotlib colormap to use.
-        
-    Returns:
-        RGB colors in float tensor of shape (N, 3).
-    """
-    device = part_ids.device
-    unique_parts = torch.unique(part_ids)
-    num_parts = len(unique_parts)
-    cmap = cm.get_cmap(colormap)
-    part_to_color = {}
-    for i, part_id in enumerate(unique_parts):
-        color_rgba = cmap(float(i) / max(1, num_parts - 1))
-        part_to_color[part_id.item()] = torch.tensor(color_rgba[:3], device=device)
-    
-    colors = torch.stack([
-        part_to_color[pid.item()] for pid in part_ids
-    ], dim=0)
-    return colors.float()
-
-
-def img_tensor_to_pil(image_tensor: torch.Tensor) -> Image:
-    """Tensor (C, H, W) to PIL Image (H, W, C) and scale to [0, 255]."""
-    image_np = (image_tensor.permute(1, 2, 0).cpu().numpy() * 255).astype('uint8')
-    return Image.fromarray(image_np)
-
-
-@torch.inference_mode()
-def visualize_point_clouds(
-    points: torch.Tensor,
-    part_ids: Optional[torch.Tensor] = None,
-    colormap: str = "Set2",
-    center_points: bool = False,
-    image_size: int = 512,
-    point_radius: float = 0.015,
-    camera_dist: float = 2.0,
-    camera_elev: float = 1.0,
-    camera_azim: float = 0.0,
-    camera_fov: float = 45.0,
-) -> torch.Tensor:
-    """Render a single point cloud to an image using PyTorch3D.
-
-    Args:
-        points: Point cloud coordinates of shape (N, 3).
-        part_ids: Part IDs for each point of shape (N,). If None, uses uniform gray color.
-        colormap: Matplotlib colormap name for part coloring.
-        center_points: If True, centers the point cloud around the origin.
-        image_size: Output image resolution (square).
-        point_radius: Radius of each rendered point in world units.
-        camera_dist: Distance of camera from point cloud center.
-        camera_elev: Camera elevation angle in degrees.
-        camera_azim: Camera azimuth angle in degrees.
-        camera_fov: Camera field of view in degrees.
-
-    Returns:
-        Rendered image of shape (3, H, W) with values in [0, 1].
-    """
-    device = points.device
-    num_points = points.shape[0]
-
-    if part_ids is not None:
-        colors = generate_part_colors(part_ids, colormap)
-    else:
-        colors = torch.ones(num_points, 3, device=device) * 0.7
-    
-    if center_points:
-        points = points - points.mean(dim=0, keepdim=True)
-    pointclouds = Pointclouds(points=[points.float()], features=[colors.float()])
-    R, T = look_at_view_transform(dist=camera_dist, elev=camera_elev, azim=camera_azim, device=device)
-    cameras = FoVPerspectiveCameras(R=R.float(), T=T.float(), fov=camera_fov, device=device)
-    raster_settings = PointsRasterizationSettings(
-        image_size=image_size,
-        radius=point_radius,
-        points_per_pixel=40,
-    )
-    rasterizer = PointsRasterizer(cameras=cameras, raster_settings=raster_settings)
-    compositor = AlphaCompositor(background_color=(1.0, 1.0, 1.0))
-    renderer = PointsRenderer(rasterizer=rasterizer, compositor=compositor)
-    rendered_images = renderer(pointclouds)
-    return rendered_images[0].permute(2, 0, 1)  # (3, H, W)
+from .utils.render import visualize_point_clouds, img_tensor_to_pil, generate_part_colors
+from .utils.point_clouds import ppp_to_ids
 
 
 class VisualizationCallback(Callback):
@@ -148,6 +52,7 @@ class VisualizationCallback(Callback):
         """
         super().__init__()
         self.save_dir = save_dir
+        self.colormap = colormap
         self.scale_to_original_size = scale_to_original_size
         self.max_samples_per_batch = max_samples_per_batch
         self.save_trajectory = save_trajectory
@@ -156,7 +61,6 @@ class VisualizationCallback(Callback):
 
         self.vis_dir = None
         self._vis_kwargs = {
-            "colormap": colormap,
             "center_points": center_points,
             "image_size": image_size,
             "point_radius": point_radius,
@@ -179,7 +83,7 @@ class VisualizationCallback(Callback):
         self,
         input_points: torch.Tensor,
         generated_points: torch.Tensor,
-        part_ids: torch.Tensor,
+        colors: torch.Tensor,
         sample_idx: int,
         sample_name: Optional[str] = None,
     ) -> None:
@@ -188,19 +92,19 @@ class VisualizationCallback(Callback):
         Args:
             input_points (torch.Tensor): Input point cloud of shape (N, 3).
             generated_points (torch.Tensor): Generated point cloud of shape (N, 3).
-            part_ids (torch.Tensor): Part IDs of shape (N,).
+            colors (torch.Tensor): Colors of shape (N, 3).
             sample_idx (int): Global sample index for naming.
             sample_name (str): Optional sample name for filename.
         """
         try:
             input_image = visualize_point_clouds(
                 points=input_points,
-                part_ids=part_ids,
+                colors=colors,
                 **self._vis_kwargs
             )
             generated_image = visualize_point_clouds(
                 points=generated_points,
-                part_ids=part_ids,
+                colors=colors,
                 **self._vis_kwargs
             )
             input_pil = img_tensor_to_pil(input_image)
@@ -218,16 +122,16 @@ class VisualizationCallback(Callback):
 
     def _save_trajectory_gif(
         self,
-        trajectory: list[torch.Tensor],
-        part_ids: torch.Tensor,
+        trajectory: torch.Tensor,
+        colors: torch.Tensor,
         sample_idx: int,
         sample_name: Optional[str] = None,
     ) -> None:
         """Save trajectory as GIF.
         
         Args:
-            trajectory: List of point clouds representing the trajectory steps.
-            part_ids: Part IDs of shape (N,) for coloring.
+            trajectory: Point clouds representing the trajectory steps of shape (num_steps, N, 3).
+            colors: Colors of shape (N, 3). Same for all trajectory steps.
             sample_idx: Global sample index for naming.
             sample_name: Optional sample name for filename.
         """
@@ -237,14 +141,18 @@ class VisualizationCallback(Callback):
                 base_name += f"_{sample_name.replace('/', '-')}"
             gif_path = self.vis_dir / f"{base_name}_trajectory.gif"
 
+            # Render all trajectory steps at once using batched visualization
+            # part_ids is the same for all steps, so no need to expand
+            rendered_images = visualize_point_clouds(
+                points=trajectory,                                          # (num_steps, N, 3)
+                colors=colors,                                              # (N, 3) - same for all steps
+                **self._vis_kwargs,
+            )   # (num_steps, 3, H, W)
+            
             frames = []
-            for step in range(trajectory.shape[0]):
-                rendered_image = visualize_point_clouds(
-                    points=trajectory[step],
-                    part_ids=part_ids,
-                    **self._vis_kwargs,
-                )
-                frame_pil = img_tensor_to_pil(rendered_image)
+            num_steps = trajectory.shape[0]
+            for step in range(num_steps):
+                frame_pil = img_tensor_to_pil(rendered_images[step])        # (H, W, 3)
                 frames.append(frame_pil)
             
             # Frame duration and pause on last frame
@@ -292,26 +200,32 @@ class VisualizationCallback(Callback):
             sample_name = None
             if "name" in batch and batch["name"][i] is not None:
                 sample_name = batch["name"][i]
+
+            # sample colors for each point
+            colors = generate_part_colors(
+                part_ids[i], colormap=self.colormap, part_order="random"
+            )
             
+            # save condition and generated point clouds
             self._save_sample_images(
                 input_points=input_points[i],
                 generated_points=pointclouds_pred[i],
-                part_ids=part_ids[i],
+                colors=colors,
                 sample_idx=sample_idx,
                 sample_name=sample_name,
             )
 
             if self.save_trajectory:
+                # save trajectory as GIF
                 trajectory = outputs['trajectory']
                 num_steps = trajectory.shape[0]
                 trajectory = trajectory.reshape(num_steps, B, -1, 3).permute(1, 0, 2, 3)  # (bs, num_steps, N, 3)
 
                 if self.scale_to_original_size:
                     trajectory = trajectory * scale[:, None, None, None]        # (bs, num_steps, N, 3)
-
                 self._save_trajectory_gif(
                     trajectory=trajectory[i],
-                    part_ids=part_ids[i],
+                    colors=colors,
                     sample_idx=sample_idx,
                     sample_name=sample_name,
                 )

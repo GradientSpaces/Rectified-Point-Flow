@@ -40,6 +40,7 @@ class PointCloudDataset(Dataset):
         split: str = "train",
         data_path: str = "data.hdf5",
         dataset_name: str = "",
+        up_axis: str = "y",
         min_parts: int = 2,
         max_parts: int = 64,
         num_points_to_sample: int = 5000,
@@ -54,6 +55,7 @@ class PointCloudDataset(Dataset):
         self.split = split
         self.data_path = data_path
         self.dataset_name = dataset_name
+        self.up_axis = up_axis.lower()
         self.min_parts = min_parts
         self.max_parts = max_parts
         self.num_points_to_sample = num_points_to_sample
@@ -208,6 +210,26 @@ class PointCloudDataset(Dataset):
         pcs, pns = zip(*sampled)
         overlap_thr = np.sqrt(2 * total_area / self.num_points_to_sample + 1e-4)
         return list(pcs), list(pns), overlap_thr
+    
+    def _make_y_up(self, pts_gt: np.ndarray, pns_gt: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """A simple transform to change the up axis of the point cloud. 
+
+        Args:
+            pts_gt: Point cloud coordinates of shape (N, 3).
+            pns_gt: Point cloud normals of shape (N, 3).
+
+        Returns:
+            pts_gt: Point cloud coordinates of shape (N, 3).
+            pns_gt: Point cloud normals of shape (N, 3).
+        """
+        if self.up_axis == "y":
+            return pts_gt, pns_gt
+        elif self.up_axis == "z":
+            return pts_gt[:, [0, 2, 1]], pns_gt[:, [0, 2, 1]]
+        elif self.up_axis == "x":
+            return pts_gt[:, [1, 0, 2]], pns_gt[:, [1, 0, 2]]
+        else:
+            raise ValueError(f"Invalid up axis: {self.up_axis}")
 
     def _transform(self, data: dict) -> dict:
         """Apply scaling, rotation, centering, shuffling, and padding."""
@@ -222,6 +244,9 @@ class PointCloudDataset(Dataset):
 
         # Center point clouds
         pts_gt, _ = center_pcd(pts_gt)
+
+        # Make point clouds y-up
+        pts_gt, normals_gt = self._make_y_up(pts_gt, normals_gt)
 
         # Scale point clouds to [-1, 1] and apply random scaling
         scale = np.max(np.abs(pts_gt))

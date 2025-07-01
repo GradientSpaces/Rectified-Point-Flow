@@ -45,21 +45,26 @@ This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7
 
 ## ✨  Demo
 
+![RPF Demo](assets/merged_trajectory_grid.gif)
+
 To sample from demo data using the trained RPF model, please run:
 
 ```bash
 python sample.py data_root="./demo/data" log_dir="./demo/"
 ```
+This saves the condition and generated point cloud renderings as PNGs.
 
-Add `visualizer.save_trajectory=true` to save the animation of the flow trajectory as a GIF, but note that the rendering is slow.
+**Renderer:** By default, we use [PyTorch3D's PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) for fast rendering. For higher quality ray-traced renderings (as shown above), we also support rendering with [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) by adding prefix `USE_MITSUBA=1` to commands.
 
-**Custom checkpoints.** If you've trained a new RPF model with [`train.py`](train.py) (see [below](#training)), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 
+**Flow Animation:** To save the point flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument; note that this will be slow.
+
+**Custom Checkpoints:** If you've trained a new RPF model with [`train.py`](train.py) (see below), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 
 
 ```bash
 python sample.py data_root="./demo/data" log_dir="./demo/RPF" ckpt_path="RPF.ckpt" 
 ```
 
-You can browse or download checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/tree/main) as well.
+You can browse or download checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/tree/main) (coming soon).
 
 
 ## 🚀 Training

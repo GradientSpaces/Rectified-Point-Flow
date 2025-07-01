@@ -1,10 +1,12 @@
-# Dataset Processing
+# Guide for Using Your Own Datasets
 
-This directory contains scripts for converting datasets between different formats, useful for processing custom datasets.
+This directory contains scripts for converting datasets between different formats, useful for processing your own datasets. 
 
-## Supported Formats
+## Data Formats
 
-Our data loader supports two formats: PLY files in a filesystem and HDF5 archives.
+Our data loader supports two data formats: 
+- PLY files in a filesystem, and
+- HDF5 archives.
 
 ### 1. PLY Files
 
@@ -117,12 +119,18 @@ dataset = PointCloudDataset(
 )
 ```
 
+### Config File
 
-You can also configure datasets from different formats in your config file (`config/data.yaml`), like:
+In the config file (`config/data.yaml`), you can specify the dataset to use in the `dataset_names` field. It will automatically detect the format as well.
 
 ```yaml
-dataset_paths:
-  ikea: "${data_root}/ikea"                # PLY files format
-  partnet_v0: "${data_root}/partnet.hdf5"  # HDF5 format
-dataset_names: ["ikea", "partnet_v0"]
+# For example, if you have the following datasets:
+# ./dataset/ikea/         # PLY files format
+# ./dataset/partnet.hdf5  # HDF5 format
+# ./dataset/custom.hdf5   # HDF5 format
+
+# You can specify to use only ikea and custom datasets:
+data_root: "./dataset"
+data:
+  dataset_names: ["ikea", "custom"]
 ```

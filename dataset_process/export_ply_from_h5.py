@@ -25,7 +25,7 @@ logger = logging.getLogger("Export")
 DATASET_NAMES = ["ikea", "partnet_v0", "everyday", "twobytwo", "modelnet", "tudl"]
 DATASET_CONFIG = {
     "ikea": "ikea.hdf5",
-    "partnet": "partnet.hdf5", 
+    "partnet_v0": "partnet.hdf5", 
     "everyday": "breaking_bad.hdf5",
     "twobytwo": "2by2.hdf5",
     "modelnet": "modelnet.hdf5",

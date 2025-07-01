@@ -4,13 +4,13 @@ save_dir: ${log_dir}
 center_points: false
 scale_to_original_size: false
 
-colormap: Set2
-image_size: 512
+colormap: default
+image_size: 256
 point_radius: 0.015
 camera_dist: 4.0
 camera_elev: 20.0
-camera_azim: 30.0
-camera_fov: 45.0
+camera_azim: 60.0
+camera_fov: 40.0
 
 # Trajectory GIF settings
 save_trajectory: true

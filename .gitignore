@@ -19,5 +19,4 @@ lightning_logs/
 /local
 
 # Demo results
-/demo/data
-/demo/visualizations
+/demo

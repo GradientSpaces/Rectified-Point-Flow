@@ -30,6 +30,7 @@ class PointCloudDataModule(L.LightningDataModule):
         self,
         data_root: str = "",
         dataset_names: List[str] = [],
+        up_axis: dict[str, str] = {},
         min_parts: int = 2,
         max_parts: int = 64,
         num_points_to_sample: int = 5000,
@@ -41,9 +42,28 @@ class PointCloudDataModule(L.LightningDataModule):
         num_workers: int = 16,
         multi_anchor: bool = False,
     ):
+        """Data module for point cloud data.
+
+        Args:
+            data_root: Root directory of the dataset.
+            dataset_names: List of dataset names to use.
+            up_axis: Dictionary of dataset names to up axis, e.g. {"ikea": "y", "everyday": "z"}.
+                     If not provided, the up axis is assumed to be 'y'. This only affects the visualization.
+            min_parts: Minimum number of parts in a point cloud.
+            max_parts: Maximum number of parts in a point cloud.
+            num_points_to_sample: Number of points to sample from each point cloud.
+            min_points_per_part: Minimum number of points per part.
+            min_dataset_size: Minimum number of point clouds in a dataset.
+            limit_val_samples: Number of point clouds to sample from the validation set.
+            random_scale_range: Range of random scale to apply to the point cloud.
+            batch_size: Batch size.
+            num_workers: Number of workers to use for loading the data.
+            multi_anchor: Whether to use multiple anchors for the point cloud.
+        """
         super().__init__()
         self.data_root = data_root
         self.dataset_names = dataset_names
+        self.up_axis = up_axis
         self.min_parts = min_parts
         self.max_parts = max_parts
         self.num_points_to_sample = num_points_to_sample
@@ -93,6 +113,7 @@ class PointCloudDataModule(L.LightningDataModule):
                     PointCloudDataset(
                         split="train",
                         data_path=self._dataset_paths[dataset_name],
+                        up_axis=self.up_axis.get(dataset_name, "y"),
                         dataset_name=dataset_name,
                         min_parts=self.min_parts,
                         max_parts=self.max_parts,
@@ -113,6 +134,7 @@ class PointCloudDataModule(L.LightningDataModule):
                     PointCloudDataset(
                         split="val",
                         data_path=self._dataset_paths[dataset_name],
+                        up_axis=self.up_axis.get(dataset_name, "y"),
                         dataset_name=dataset_name,
                         min_parts=self.min_parts,
                         max_parts=self.max_parts,
@@ -134,6 +156,7 @@ class PointCloudDataModule(L.LightningDataModule):
                         split="val",
                         data_path=self._dataset_paths[dataset_name],
                         dataset_name=dataset_name,
+                        up_axis=self.up_axis.get(dataset_name, "y"),
                         min_parts=self.min_parts,
                         max_parts=self.max_parts,
                         num_points_to_sample=self.num_points_to_sample,
