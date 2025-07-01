@@ -45,7 +45,7 @@ This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7
 
 ## ✨  Demo
 
-You can sample assembled objects from unposed parts using our trained RPF models with [`sample.py`](sample.py).  To sample from demo data, please run:
+To sample from demo data using the trained RPF model, please run:
 
 ```bash
 python sample.py data_root="./demo/data" log_dir="./demo/"
