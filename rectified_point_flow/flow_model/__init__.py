@@ -4,10 +4,10 @@ This module provides a standalone implementation of diffusion transformers
 for point cloud processing.
 """
 
-from .point_cloud_dit import PointCloudDiT
+from .embedding import PointCloudEncodingManager
 from .layer import DiTLayer
 from .norm import AdaptiveLayerNorm, MultiHeadRMSNorm
-from .embedding import PointCloudEncodingManager
+from .point_cloud_dit import PointCloudDiT
 
 __all__ = [
     "PointCloudDiT",

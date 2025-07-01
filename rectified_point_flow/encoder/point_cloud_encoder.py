@@ -1,10 +1,10 @@
 from functools import partial
-from typing import Optional, Dict
+from typing import Dict, Optional
 
+import lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import lightning as pl
 import torchmetrics
 
 
@@ -23,6 +23,7 @@ class PointCloudEncoder(pl.LightningModule):
         lr_scheduler: Optional[partial] = None,
         grid_size: float = 0.02,
         overlap_head_intermediate_dim: int = 16,
+        compute_overlap_points: bool = False,
     ):
         super().__init__()
         self.pc_feat_dim = pc_feat_dim
@@ -31,12 +32,12 @@ class PointCloudEncoder(pl.LightningModule):
         self.lr_scheduler = lr_scheduler
         self.grid_size = grid_size
         self.overlap_head_intermediate_dim = overlap_head_intermediate_dim
-
+        self.compute_overlap_points = compute_overlap_points
         self._build_model()
 
     def _build_model(self):
         """Build the overlap-aware pretraining model components."""
-        self.batch_norm = nn.BatchNorm1d(self.pc_feat_dim)
+        self.norm = nn.LayerNorm(self.pc_feat_dim)
         self.overlap_head = nn.Sequential(
             nn.Linear(self.pc_feat_dim, self.overlap_head_intermediate_dim),
             nn.ReLU(inplace=True),
@@ -55,11 +56,10 @@ class PointCloudEncoder(pl.LightningModule):
         pointclouds = batch["pointclouds_gt"]  # (B, N, 3)
         B, N, _ = pointclouds.shape
         part_ids = point_features.batch_level1.view(B, N)
-        breakpoint()
-        threshold = batch["threshold"].view(B, 1, 1)
-        contact_mask = torch.zeros((B, N), dtype=torch.bool, device=pointclouds.device)
+        overlap_threshold = batch["overlap_threshold"].view(B, 1, 1)
+        overlap_mask = torch.zeros((B, N), dtype=torch.bool, device=pointclouds.device)
         
-        # Process in chunks to limit memory usage
+        # Process in chunks to limit GPU memory usage
         chunk_size = self.CHUNK_SIZE
         if chunk_size > 0:
             assert N % chunk_size == 0, f"N ({N}) must be divisible by chunk_size ({chunk_size})"
@@ -81,10 +81,10 @@ class PointCloudEncoder(pl.LightningModule):
             distances[~different_parts] = float('inf')
             
             # Check for overlap points
-            has_contact = (distances <= threshold).any(dim=2)  # (B, M)
-            contact_mask[:, start:end] = has_contact
+            has_contact = (distances <= overlap_threshold).any(dim=2)  # (B, M)
+            overlap_mask[:, start:end] = has_contact
 
-        return contact_mask.long().view(-1)
+        return overlap_mask.long().view(-1)
 
     def _extract_point_features(self, batch: Dict[str, torch.Tensor]) -> tuple:
         """Extract point features using the encoder."""
@@ -110,8 +110,7 @@ class PointCloudEncoder(pl.LightningModule):
                 "grid_size": torch.tensor(self.grid_size).to(part_coords.device),
             })
             point["normal"] = part_normals
-            features = self.batch_norm(point["feat"])
-            assert not features.isnan().any(), "Point features contain NaN values"
+            features = self.norm(point["feat"])
             
         return features, point, super_point, n_valid_partsarts
 
@@ -121,54 +120,62 @@ class PointCloudEncoder(pl.LightningModule):
         point_features, point_data, super_point_data, _ = self._extract_point_features(batch)
         
         # Overlap prediction
-        seg_logits = self.overlap_head(point_features)
-        seg_pred = torch.sigmoid(seg_logits)
-        seg_pred_binary = seg_pred > 0.5
+        overlap_logits = self.overlap_head(point_features)
+        overlap_pred = torch.sigmoid(overlap_logits)
+        overlap_pred_binary = overlap_pred > 0.5
 
         # Prepare output dictionary
         output = {
-            "seg_logits": seg_logits,
-            "seg_pred": seg_pred,
-            "seg_pred_binary": seg_pred_binary,
+            "overlap_logits": overlap_logits,
+            "overlap_pred": overlap_pred,
+            "overlap_pred_binary": overlap_pred_binary,
             "point": point_data,
             "super_point": super_point_data,
         }
 
         # Compute overlap points GT for pretraining stage
-        if self.training:
+        if self.compute_overlap_points:
             with torch.no_grad():
-                output["seg_gt"] = self._compute_overlap_points(batch, point_data)
+                output["overlap_mask"] = self._compute_overlap_points(batch, point_data)
             
         return output
     
     def loss(self, predictions: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]) -> tuple:
         """Compute loss and metrics for training/validation."""
-        bce_loss = F.binary_cross_entropy_with_logits(
-            predictions["seg_logits"],
-            predictions["seg_gt"].float(),
+        loss = F.binary_cross_entropy_with_logits(
+            predictions["overlap_logits"],
+            predictions["overlap_mask"].float(),
             reduction="mean",
         )
         
         # Compute metrics
-        pred_binary = predictions["seg_pred_binary"]
-        target = predictions["seg_gt"]
+        pred_binary = predictions["overlap_pred_binary"]
+        target = predictions["overlap_mask"]
         metrics = {
             "accuracy": torchmetrics.functional.accuracy(pred_binary, target, task="binary"),
             "recall": torchmetrics.functional.recall(pred_binary, target, task="binary"),
             "precision": torchmetrics.functional.precision(pred_binary, target, task="binary"),
             "f1": torchmetrics.functional.f1_score(pred_binary, target, task="binary"),
-            "bce_loss": bce_loss,
         }
-        
-        return bce_loss, metrics
+        return loss, metrics
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Optional[torch.Tensor]:
         """Training step."""
         try:
             predictions = self(batch)
             loss, metrics = self.loss(predictions, batch)
-            self.log("train/loss", loss, on_step=True, on_epoch=False, prog_bar=True)
-            self.log_dict({f"train/{k}": v for k, v in metrics.items()}, on_step=True, on_epoch=False)
+            self.log(
+                "train/loss", 
+                loss, 
+                on_step=True, 
+                on_epoch=False, 
+                prog_bar=True, 
+            )
+            self.log_dict(
+                {f"train/{k}": v for k, v in metrics.items()}, 
+                on_step=True, 
+                on_epoch=False, 
+            )
             return loss
         
         except Exception as e:
@@ -180,8 +187,12 @@ class PointCloudEncoder(pl.LightningModule):
         try:
             predictions = self(batch)
             loss, metrics = self.loss(predictions, batch)
-            self.log("val/loss", loss, on_step=True, on_epoch=True, sync_dist=True, prog_bar=True)
-            self.log_dict({f"val/{k}": v for k, v in metrics.items()}, on_step=False, on_epoch=True, sync_dist=True)
+            self.log_dict(
+                {f"val/{k}": v for k, v in metrics.items()}, 
+                on_step=False, 
+                on_epoch=True, 
+                sync_dist=True
+            )
             return loss
         
         except Exception as e:
@@ -192,8 +203,12 @@ class PointCloudEncoder(pl.LightningModule):
         """Test step."""
         predictions = self.forward(batch)
         loss, metrics = self.loss(predictions, batch)
-        self.log("test/loss", loss, on_step=True, on_epoch=True, sync_dist=True, prog_bar=True)
-        self.log_dict({f"test/{k}": v for k, v in metrics.items()}, on_step=True, on_epoch=True, sync_dist=True)
+        self.log_dict(
+            {f"test/{k}": v for k, v in metrics.items()}, 
+            on_step=True,
+            on_epoch=True, 
+            sync_dist=True
+        )
         return loss
 
     def configure_optimizers(self):

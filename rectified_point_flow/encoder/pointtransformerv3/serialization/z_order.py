@@ -5,8 +5,9 @@
 # Written by Peng-Shuai Wang
 # --------------------------------------------------------
 
-import torch
 from typing import Optional, Union
+
+import torch
 
 
 class KeyLUT:

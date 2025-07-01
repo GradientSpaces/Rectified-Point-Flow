@@ -1,14 +1,15 @@
 """Training utilities for Rectified Point Flow."""
 
+import glob
 import logging
 import os
-import glob
-import hydra
 from typing import List
 
+import hydra
 import lightning as L
+from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from lightning.pytorch.loggers import Logger, WandbLogger
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 logger = logging.getLogger("Train")
 
@@ -45,15 +46,24 @@ def setup_loggers(cfg: DictConfig) -> List[Logger]:
     ]
     return loggers
 
-
-def log_code_to_wandb(loggers: List[Logger], rank: int) -> None:
+@rank_zero_only
+def log_code_to_wandb(loggers: List[Logger]) -> None:
     """Log code to wandb if available."""
-    if rank == 0:
-        for logger in loggers:
-            if isinstance(logger, WandbLogger):
-                original_cwd = hydra.utils.get_original_cwd()
-                logger.experiment.log_code(
-                    root=original_cwd,
-                    include_fn=lambda path: path.endswith(".py")
-                )
-                print(f"Code logged to wandb from {original_cwd}")
+    for log in loggers:
+        if isinstance(log, WandbLogger):
+            original_cwd = hydra.utils.get_original_cwd()
+            log.experiment.log_code(
+                root=original_cwd,
+                include_fn=lambda path: path.endswith(".py") or path.endswith(".yaml")
+            )
+            print(f"Codes logged to wandb from {original_cwd}")
+
+@rank_zero_only
+def log_config_to_wandb(loggers: List[Logger], cfg: DictConfig):
+    try:
+        config_dict = OmegaConf.to_container(cfg, resolve=True)
+        for log in loggers:
+            if isinstance(log, WandbLogger):
+                log.experiment.config.update(config_dict, allow_val_change=True)
+    except Exception as e:
+        logger.warning(f"Failed to update wandb config: {e}")

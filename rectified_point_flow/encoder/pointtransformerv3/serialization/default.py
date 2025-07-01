@@ -1,8 +1,9 @@
 import torch
-from .z_order import xyz2key as z_order_encode_
-from .z_order import key2xyz as z_order_decode_
-from .hilbert import encode as hilbert_encode_
+
 from .hilbert import decode as hilbert_decode_
+from .hilbert import encode as hilbert_encode_
+from .z_order import key2xyz as z_order_decode_
+from .z_order import xyz2key as z_order_encode_
 
 
 @torch.inference_mode()

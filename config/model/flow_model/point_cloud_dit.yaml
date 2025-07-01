@@ -4,4 +4,4 @@ out_dim: 3
 embed_dim: 512
 num_layers: 6
 num_heads: 8
-dropout_rate: 0.1
+dropout_rate: 0.0

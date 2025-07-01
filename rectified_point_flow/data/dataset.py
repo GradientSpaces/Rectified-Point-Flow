@@ -1,31 +1,54 @@
-from typing import List, Dict
+import os
+import glob
+import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import h5py
 import numpy as np
 import trimesh
-import logging
+from trimesh.exchange.ply import load_ply
 from torch.utils.data import Dataset
 
-from .utils import sample_points_poisson, pad_data
-from .transform import center_pc, rotate_pc, shuffle_pc
-
+from .transform import sample_points_poisson, center_pcd, rotate_pcd, pad_data
 
 logger = logging.getLogger("Data")
 
-class PointCloudDataset(Dataset):
-    """Dataset for point cloud data with weighted sampling."""
+
+def _load_mesh_from_h5(group, part_name):
+    """Load one mesh part from an HDF5 group."""
+    sub_grp = group[part_name]
+    verts = np.array(sub_grp["vertices"][:])
+    norms = np.array(sub_grp["normals"][:]) if "normals" in sub_grp else None
+    faces = np.array(sub_grp["faces"][:]) if "faces" in sub_grp else np.array([])
+    return trimesh.Trimesh(vertices=verts, faces=faces, vertex_normals=norms, process=False)
+
+def _load_mesh_from_ply(ply_path):
+    """Load a mesh from a PLY file."""
+    with open(ply_path, "rb") as f:
+        ply_data = load_ply(f)
+    verts = ply_data["vertices"]
+    norms = ply_data["vertex_normals"] if "vertex_normals" in ply_data else None
+    faces = ply_data["faces"] if "faces" in ply_data else None
+    return trimesh.Trimesh(vertices=verts, vertex_normals=norms, faces=faces, process=False)
     
+
+class PointCloudDataset(Dataset):
+    """Dataset class for multi-part point clouds and apply part-level augmentation."""
+
     def __init__(
         self,
         split: str = "train",
-        data_path: str = "../dataset",
-        dataset_name: str | list[str] = "everyday",
+        data_path: str = "data.hdf5",
+        dataset_name: str = "",
         min_parts: int = 2,
         max_parts: int = 64,
         num_points_to_sample: int = 5000,
         min_points_per_part: int = 20,
-        multi_ref: bool = False,
-        limit_samples: int = 0,
+        random_scale_range: tuple[float, float] | None = None,
+        multi_anchor: bool = False,
+        limit_val_samples: int = 0,
+        min_dataset_size: int = 0,
+        num_threads: int = 2,
     ):
         super().__init__()
         self.split = split
@@ -35,246 +58,262 @@ class PointCloudDataset(Dataset):
         self.max_parts = max_parts
         self.num_points_to_sample = num_points_to_sample
         self.min_points_per_part = min_points_per_part
-        self.multi_ref = multi_ref
-        self.limit_samples = limit_samples
-        
-        self._h5_file = None
-        self.min_part_count = float("inf")
-        self.max_part_count = 0
-        self.data_list = self.get_data_list()
+        self.random_scale_range = random_scale_range
+        self.multi_anchor = multi_anchor
+        self.limit_val_samples = limit_val_samples
+        self.min_dataset_size = min_dataset_size
 
-        logger.info(f"| {self.dataset_name:16s} | {self.split:8s} | {len(self.data_list):8d} | [{self.min_part_count:2d}, {self.max_part_count:2d}] |")
-        trimesh.util.log.setLevel(logging.ERROR)
+        self.use_folder = os.path.isdir(self.data_path)
+        self.pool = ThreadPoolExecutor(max_workers=num_threads)
+        self._h5_file = None
+
+        self.min_part_count = self.max_parts + 1
+        self.max_part_count = 0
+        self.fragments = self._build_fragment_list()
+        logger.info(
+            f"| {self.dataset_name:16s} | {self.split:8s} | {len(self.fragments):8d} "
+            f"| [{int(self.min_part_count):2d}, {int(self.max_part_count):2d}] |"
+        )
+
+    def __len__(self):
+        return len(self.fragments)
+
+    def __getitem__(self, index):
+        frag = self.fragments[index]
+        if self.use_folder:
+            sample = self._load_from_folder(frag, index)
+        else:
+            sample = self._load_from_h5(frag, index)
+        return self._transform(sample)
 
     def _get_h5_file(self):
         if self._h5_file is None:
-            self._h5_file = h5py.File(self.data_path, "r")
+            self._h5_file = h5py.File(self.data_path, "r", libver='latest', swmr=True)
         return self._h5_file
 
-    def get_data_list(self) -> List[str]:
-        """Return the list of data samples."""
-        h5_file = self._get_h5_file()
-        if isinstance(self.dataset_name, str):
-            data_list = list(h5_file["data_split"][self.dataset_name][self.split])
+    def _build_fragment_list(self) -> list[str]:
+        """Read and filter fragment keys from hdf5 or folder."""
+        if self.use_folder:
+            split_file = os.path.join(self.data_path, "data_split", f"{self.split}.txt")
+            with open(split_file, 'r') as f:
+                frags = [line.strip() for line in f if line.strip()]
+            fragments = []
+            for frag in frags:
+                parts = glob.glob(
+                    os.path.join(self.data_path, frag, "*.ply")
+                )
+                n_parts = len(parts)
+                if self.min_parts <= n_parts <= self.max_parts:
+                    self.min_part_count = min(self.min_part_count, n_parts)
+                    self.max_part_count = max(self.max_part_count, n_parts)
+                    fragments.append(frag)
+            return fragments
+
+        elif self.data_path.endswith('.hdf5'):
+            h5 = self._get_h5_file()
+            raw = h5["data_split"][self.dataset_name][self.split]
+            frags = [r.decode() for r in raw[:]]
+            fragments = []
+            for name in frags:
+                try:
+                    count = len(h5[name].keys())
+                    if self.min_parts <= count <= self.max_parts:
+                        self.min_part_count = min(self.min_part_count, count)
+                        self.max_part_count = max(self.max_part_count, count)
+                        fragments.append(name)
+                except KeyError:
+                    continue
+
         else:
-            data_list = []
-            for cat in self.dataset_name:
-                data_list += list(h5_file["data_split"][cat][self.split])
-        data_list = [d.decode("utf-8") for d in data_list]
-        
-        filtered_data_list = []
-        for item in data_list:
-            try:
-                num_parts = len(h5_file[item].keys())
-                if self.min_parts <= num_parts <= self.max_parts:
-                    self.min_part_count = min(self.min_part_count, num_parts)
-                    self.max_part_count = max(self.max_part_count, num_parts)
-                    filtered_data_list.append(item)
-            except:
-                logger.warning(f"Error getting data list for {item}")
-                continue
-
-        # limit the number of samples
-        if self.limit_samples > 0 and len(filtered_data_list) > self.limit_samples:
-            every_n = len(filtered_data_list) // self.limit_samples
-            filtered_data_list = filtered_data_list[::every_n]
-        return filtered_data_list
-
-    def get_data(self, index: int) -> Dict:
-        """Get data for a given index."""
-        name = self.data_list[index]
-        h5_file = self._get_h5_file()
-        group = h5_file[name]
-        pieces = group.keys()
-        pieces_names = list(pieces)
-        num_parts = len(pieces)
-        has_faces = "faces" in group[pieces_names[0]]
-        has_normals = "normals" in group[pieces_names[0]]
-        
-        meshes = [
-            trimesh.Trimesh(
-                vertices=np.array(group[piece]["vertices"][:]),
-                faces=np.array(group[piece]["faces"][:]) if has_faces else np.array([]),
-                vertex_normals=np.array(group[piece]["normals"][:]) if has_normals else None,
-                process=False,
+            raise ValueError(
+                f"Invalid data path: {self.data_path}. Please provide a folder path or a .hdf5 file."
             )
-            for piece in pieces
-        ]
 
-        # Sample points
-        pointclouds_gt, pointclouds_normals_gt = self.sample_points(meshes)
+        # limit or upsample
+        if self.limit_val_samples > 0 and len(fragments) > self.limit_val_samples:
+            step = len(fragments) // self.limit_val_samples
+            fragments = fragments[::step]
 
-        data = {
+        if self.min_dataset_size > 0 and len(fragments) < self.min_dataset_size:
+            reps = -(-self.min_dataset_size // len(fragments))
+            fragments = fragments * reps
+
+        return fragments
+
+    def _load_from_h5(self, name: str, index: int) -> dict:
+        group = self._get_h5_file()[name]
+        parts = sorted(list(group.keys()))
+        meshes = list(self.pool.map(lambda p: _load_mesh_from_h5(group, p), parts))
+        pcs, pns, thr = self._sample_points(meshes)
+        return {
             "index": index,
             "name": name,
-            "dataset_name": self.dataset_name,
-            "num_parts": num_parts,
-            "pointclouds_gt": pointclouds_gt,
-            "pointclouds_normals_gt": pointclouds_normals_gt,
+            "num_parts": len(parts),
+            "pointclouds_gt": pcs,
+            "pointclouds_normals_gt": pns,
+            "overlap_threshold": thr,
         }
-        return data
 
-    def sample_points(self, meshes: List[trimesh.Trimesh]) -> tuple[List[np.ndarray], List[np.ndarray]]:
-        """Sample points from meshes based on area."""
-        
-        # Handle point only dataset
-        if any(mesh.faces.shape[0] == 0 for mesh in meshes):
-            num_parts = len(meshes)
-            pointclouds_gt = []
-            pointclouds_normals_gt = []
-            for mesh in meshes:
-                sample_idx = np.random.choice(
-                    mesh.vertices.shape[0], 
-                    self.num_points_to_sample // num_parts, 
-                    replace=True
-                )
-                pts = mesh.vertices[sample_idx]
-                pointclouds_gt.append(pts)
-                pointclouds_normals_gt.append(mesh.vertex_normals[sample_idx])
-            return pointclouds_gt, pointclouds_normals_gt
-
-
-        # Sample points based on area per part
-        areas = [mesh.area for mesh in meshes]
-        total_area = sum(areas)
-        num_parts = len(meshes)
-        base = self.min_points_per_part
-        remaining = self.num_points_to_sample - base * num_parts
-        points_per_part = [
-            base + int(remaining * (area / total_area))
-            for area in areas
-        ]
-        diff = self.num_points_to_sample - sum(points_per_part)
-        if diff != 0:
-            points_per_part[np.argmax(points_per_part)] += diff
-
-        # Sample points
-        pointclouds_gt = []
-        pointclouds_normals_gt = []
-        for mesh, count in zip(meshes, points_per_part):
-            pts, idx = sample_points_poisson(mesh, count)
-            if len(pts) > count:
-                pts = pts[:count]
-                idx = idx[:count]
-            elif len(pts) < count:
-                extra, extra_idx = trimesh.sample.sample_surface(mesh, count-len(pts))
-                pts = np.vstack((pts, extra))
-                idx = np.concatenate((idx, extra_idx))
-            pointclouds_gt.append(pts)
-            pointclouds_normals_gt.append(mesh.face_normals[idx])
-
-        return pointclouds_gt, pointclouds_normals_gt
-
-    def transform(self, data: dict) -> Dict:
-        """Transform data for training."""
-        num_parts = data["num_parts"]
-        pointclouds_gt = data["pointclouds_gt"]
-        pointclouds_normals_gt = data["pointclouds_normals_gt"]
-
-        points_per_part = np.array([len(pc) for pc in pointclouds_gt])
-        offset = np.concatenate([[0], np.cumsum(points_per_part)])
-        pointclouds_gt = np.concatenate(pointclouds_gt)
-        pointclouds_normals_gt = np.concatenate(pointclouds_normals_gt)
-
-        # Initial rotation
-        pointclouds_gt, pointclouds_normals_gt, init_rot = rotate_pc(
-            pointclouds_gt,
-            pointclouds_normals_gt,
-        )
-
-        # Scale the point cloud
-        scale = np.max(np.abs(pointclouds_gt))
-        pointclouds_gt = pointclouds_gt / scale
-
-        pointclouds, pointclouds_normals, quaternions, translations = [], [], [], []
-        for part_idx in range(num_parts):
-            start = offset[part_idx]
-            end = offset[part_idx + 1]
-
-            # Center the point cloud
-            pointcloud, translation = center_pc(pointclouds_gt[start:end])
-
-            # Random rotate the point cloud
-            pointcloud, pointcloud_normals, quaternion = rotate_pc(
-                pointcloud, pointclouds_normals_gt[start:end]
-            )
-            
-            # Shuffle point order
-            random_order = np.random.permutation(len(pointcloud))
-            pointcloud, pointcloud_normals = shuffle_pc(
-                pointcloud, pointcloud_normals, random_order
-            )
-            pointclouds_gt[start:end] = pointclouds_gt[start:end][random_order]
-            pointclouds_normals_gt[start:end] = pointclouds_normals_gt[start:end][random_order]
-
-            pointclouds.append(pointcloud)
-            pointclouds_normals.append(pointcloud_normals)
-            quaternions.append(quaternion)
-            translations.append(translation)
-
-        # Concatenate
-        pointclouds = np.concatenate(pointclouds).astype(np.float32)
-        pointclouds_normals = np.concatenate(pointclouds_normals).astype(np.float32)
-        quaternions = np.stack(quaternions).astype(np.float32)
-        translations = np.stack(translations).astype(np.float32)
-
-        # Pad data
-        points_per_part = pad_data(points_per_part, self.max_parts).astype(np.int64)
-        quaternions = pad_data(quaternions, self.max_parts)
-        translations = pad_data(translations, self.max_parts)
-        scale = pad_data(np.array([scale] * num_parts), self.max_parts)
-
-        # Reference part selection
-        ref_part = np.zeros((self.max_parts), dtype=np.float32)
-        ref_part_idx = np.argmax(points_per_part[:num_parts])
-        ref_part[ref_part_idx] = 1
-        ref_part = ref_part.astype(bool)
-
-        if self.multi_ref and num_parts > 2 and np.random.rand() > 1 / num_parts:
-            can_be_ref = points_per_part[:num_parts] > self.num_points_to_sample * 0.05
-            can_be_ref[ref_part_idx] = False
-            can_be_ref_num = np.sum(can_be_ref)
-            if can_be_ref_num > 0:
-                num_more_ref = np.random.randint(1, min(can_be_ref_num + 1, num_parts - 1))
-                more_ref_part_idx = np.random.choice(np.where(can_be_ref)[0], num_more_ref, replace=False)
-                ref_part[more_ref_part_idx] = True
-
+    def _load_from_folder(self, frag: str, index: int) -> dict:
+        folder = os.path.join(self.data_path, frag)
+        ply_files = sorted(glob.glob(os.path.join(folder, "*.ply")))
+        meshes = [_load_mesh_from_ply(p) for p in ply_files]
+        pcs, pns, overlap_thr = self._sample_points(meshes)
         return {
-            "index": data["index"],
-            "name": data["name"],
-            "dataset_name": data["dataset_name"],
-            "num_parts": num_parts,
-            "pointclouds": pointclouds.astype(np.float32),
-            "pointclouds_gt": pointclouds_gt.astype(np.float32),
-            "pointclouds_normals": pointclouds_normals.astype(np.float32),
-            "pointclouds_normals_gt": pointclouds_normals_gt.astype(np.float32),
-            "quaternions": quaternions,
-            "translations": translations,
-            "points_per_part": points_per_part,
-            "scale": scale,
-            "ref_part": ref_part,
-            "init_rotation": init_rot,
+            "index": index,
+            "name": frag,
+            "pointclouds_gt": pcs,
+            "pointclouds_normals_gt": pns,
+            "overlap_threshold": overlap_thr,
+            "num_parts": len(meshes),
         }
 
-    def __getitem__(self, index):
-        data = self.get_data(index)
-        return self.transform(data)
+    def _sample_points(self, meshes: list[trimesh.Trimesh]) -> tuple[list[np.ndarray], list[np.ndarray], float]:
+        """Sample points (and normals) from meshes."""
 
-    def __len__(self):
-        return len(self.data_list)
-    
+        # Handle non-mesh dataset (e.g., ModelNet)
+        if not hasattr(meshes[0], "faces") or any(m.faces.shape[0] == 0 for m in meshes):
+            pcs, pns = [], []
+            n_parts = len(meshes)
+            for m in meshes:
+                cnt = self.num_points_to_sample // n_parts
+                idx = np.random.choice(len(m.vertices), cnt, replace=True)
+                pcs.append(m.vertices[idx])
+                pns.append(
+                    m.vertex_normals[idx] if m.vertex_normals is not None else np.zeros((cnt, 3))
+                )
+            overlap_thr = 0.05  # TODO: move to config
+            return pcs, pns, overlap_thr
+
+        # Allocate sampling counts by area
+        areas = np.array([m.area for m in meshes])
+        total_area = areas.sum()
+        base = self.min_points_per_part
+
+        remaining_points = self.num_points_to_sample - base * len(meshes)
+        counts = (base + (remaining_points * (areas / total_area)).astype(int)).tolist()
+        diff = self.num_points_to_sample - sum(counts)
+        counts[np.argmax(counts)] += diff
+
+        def _proc_mesh(args):
+            mesh, cnt = args
+            pts, fidx = sample_points_poisson(mesh, cnt)
+            if len(pts) < cnt:
+                extra, eidx = trimesh.sample.sample_surface(mesh, cnt - len(pts))
+                pts = np.vstack((pts, extra))
+                fidx = np.concatenate((fidx, eidx))
+            return pts[:cnt], mesh.face_normals[fidx[:cnt]]
+
+        sampled = list(self.pool.map(_proc_mesh, zip(meshes, counts)))
+        pcs, pns = zip(*sampled)
+        overlap_thr = np.sqrt(2 * total_area / self.num_points_to_sample + 1e-4)
+        return list(pcs), list(pns), overlap_thr
+
+    def _transform(self, data: dict) -> dict:
+        """Apply scaling, rotation, centering, shuffling, and padding."""
+        pcs_gt = data["pointclouds_gt"]
+        pns_gt = data["pointclouds_normals_gt"]
+        n_parts = data["num_parts"]
+
+        counts = np.array([len(pc) for pc in pcs_gt])
+        offsets = np.concatenate([[0], np.cumsum(counts)])
+        pts_gt = np.concatenate(pcs_gt)
+        normals_gt = np.concatenate(pns_gt)
+
+        # Center point clouds
+        pts_gt, _ = center_pcd(pts_gt)
+
+        # Scale point clouds to [-1, 1] and apply random scaling
+        scale = np.max(np.abs(pts_gt))
+        if self.random_scale_range is not None:
+            scale *= np.random.uniform(*self.random_scale_range)
+        pts_gt /= scale
+
+        # Initial rotation (quat in wxyz format)
+        if self.split == "train":
+            pts_gt, normals_gt, init_quat = rotate_pcd(pts_gt, normals_gt)
+        else:
+            init_quat = np.array([1, 0, 0, 0])
+
+        pts, normals = pts_gt.copy(), normals_gt.copy()
+
+        def _proc_part(i):
+            """Process one part: center, rotate, and shuffle."""
+            st, ed = offsets[i], offsets[i+1]
+            # center the point cloud
+            part, trans = center_pcd(pts_gt[st:ed])
+            # random rotate the point cloud
+            part, norms, quant = rotate_pcd(part, normals_gt[st:ed])
+            # random shuffle point order
+            _order = np.random.permutation(len(part))
+            pts[st: ed] = part[_order]
+            normals[st: ed] = norms[_order]
+            pts_gt[st:ed] = pts_gt[st:ed][_order]
+            normals_gt[st:ed] = normals_gt[st:ed][_order]
+            return quant, trans
+
+        results = list(self.pool.map(_proc_part, range(n_parts)))
+        quats, trans = zip(*results)
+
+        # Padding to max_parts
+        pts_per_part = pad_data(counts, self.max_parts)
+        quats = pad_data(np.stack(quats), self.max_parts)
+        trans = pad_data(np.stack(trans), self.max_parts)
+        scale = pad_data(np.array([scale] * n_parts), self.max_parts)
+
+        # Anchor selection (primary part and extra parts)
+        anchor = np.zeros(self.max_parts, bool)
+        primary = np.argmax(counts)
+        anchor[primary] = True
+
+        # Select extra parts if multi_anchor is enabled
+        if self.multi_anchor and n_parts > 2 and np.random.rand() > 1 / n_parts:
+            candidates = counts[:n_parts] > self.num_points_to_sample * 0.05
+            candidates[primary] = False
+            if candidates.any():
+                extra_n = np.random.randint(
+                    1, min(candidates.sum() + 1, n_parts - 1)
+                )
+                extra_idx = np.random.choice(
+                    np.where(candidates)[0], extra_n, replace=False
+                )
+                anchor[extra_idx] = True
+
+        # Return the transformed data
+        results = {}
+        for key in ["index", "name", "overlap_threshold"]:
+            results[key] = data[key]
+
+        results["dataset_name"] = self.dataset_name
+        results["num_parts"] = n_parts
+        results["pointclouds"] = pts.astype(np.float32)
+        results["pointclouds_gt"] = pts_gt.astype(np.float32)
+        results["pointclouds_normals"] = normals.astype(np.float32)
+        results["pointclouds_normals_gt"] = normals_gt.astype(np.float32)
+        results["quaternions"] = quats.astype(np.float32)
+        results["translations"] = trans.astype(np.float32)
+        results["points_per_part"] = pts_per_part.astype(np.int64)
+        results["scale"] = scale.astype(np.float32)
+        results["anchor_part"] = anchor.astype(bool)
+        results["init_rotation"] = init_quat.astype(np.float32)
+
+        return results
+
+    def __del__(self):
+        if self._h5_file is not None:
+            self._h5_file.close()
+        self.pool.shutdown()
+
 
 if __name__ == "__main__":
-    # Test the dataset
-    dataset = PointCloudDataset(
+    ds = PointCloudDataset(
         split="train",
         data_path="../dataset/ikea.hdf5",
         dataset_name="ikea",
     )
-
-    sample = dataset[0]
-    for key, value in sample.items():
-        if isinstance(value, np.ndarray):
-            print(f"{key:<30} {value.shape}, {value.dtype}")
+    sample = ds[0]
+    for key, val in sample.items():
+        if isinstance(val, np.ndarray):
+            print(f"{key:<20} {val.shape}, {val.dtype}")
         else:
-            print(f"{key:<30} {value}")
+            print(f"{key:<20} {val}")

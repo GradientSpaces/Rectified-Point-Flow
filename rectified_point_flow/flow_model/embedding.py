@@ -7,13 +7,8 @@ import torch.nn as nn
 class PointCloudEmbedding:
     """Generate positional encodings for multi-part point clouds.
     
-    Args:
-        include_input: Whether to include raw input in the embedding.
-        input_dims: Dimensionality of input features.
-        max_freq_log2: Maximum frequency (log2) for sinusoidal encoding.
-        num_freqs: Number of frequency bands.
-        log_sampling: Whether to use logarithmic frequency sampling.
-        periodic_fns: List of periodic functions to apply.
+    Ref:
+        Nerf-pytorch: https://github.com/yenchenlin/nerf-pytorch/blob/master/run_nerf_helpers.py
     """
 
     def __init__(
@@ -24,7 +19,6 @@ class PointCloudEmbedding:
         num_freqs: int = 10,
         log_sampling: bool = True,
         periodic_fns: list = None,
-        **kwargs
     ):
         self.include_input = include_input
         self.input_dims = input_dims
@@ -85,60 +79,47 @@ class PointCloudEncodingManager(nn.Module):
 
         # Coordinate of condition PCs
         self.coord_embedding = PointCloudEmbedding(
-            include_input=True,
             input_dims=3,
             max_freq_log2=multires - 1,
             num_freqs=multires,
-            log_sampling=True,
-            periodic_fns=[torch.sin, torch.cos],
         )
         
         # Coordinate of noise PCs
         self.noise_embedding = PointCloudEmbedding(
-            include_input=True,
             input_dims=3,
             max_freq_log2=multires - 1,
             num_freqs=multires,
-            log_sampling=True,
-            periodic_fns=[torch.sin, torch.cos],
         )
 
         # Normal vector of condition PCs
         self.normal_embedding = PointCloudEmbedding(
-            include_input=True,
             input_dims=3,
             max_freq_log2=multires - 1,
             num_freqs=multires,
-            log_sampling=True,
-            periodic_fns=[torch.sin, torch.cos],
         )
 
-        # Scale of condition PCs
+        # Scale factor of condition PCs
         self.scale_embedding = PointCloudEmbedding(
-            include_input=True,
             input_dims=1,
             max_freq_log2=multires - 1,
             num_freqs=multires,
-            log_sampling=True,
-            periodic_fns=[torch.sin, torch.cos],
         )
 
-        # Shape embedding projection
+        # Embedding projection
         embed_input_dim = (
             self.in_dim
             + self.coord_embedding.out_dim
             + self.noise_embedding.out_dim
             + self.normal_embedding.out_dim
             + self.scale_embedding.out_dim
-        )
-            
+        ) 
         self.emb_proj = nn.Linear(embed_input_dim, self.embed_dim)
 
     def forward(
         self,
         x: torch.Tensor,       # (n_points, 3)
-        latent: dict,          # PointTransformer Point instance
-        scale: torch.Tensor,   # (n_valid_parts, 1)
+        latent: dict,          # PointTransformer's `Point` instance
+        scale: torch.Tensor,   # (n_valid_parts, )
     ) -> torch.Tensor:
         """Generate PointCloudEmbedding from the input.
         
@@ -151,17 +132,17 @@ class PointCloudEncodingManager(nn.Module):
             Shape embeddings of shape (n_points, embed_dim).
         """
         # Coordinate of noise PCs
-        x_pos_emb = self.noise_embedding.embed(x)                   # (bs * n_points, emb_dim)
+        x_pos_emb = self.noise_embedding.embed(x)                   # (n_points, emb_dim)
 
         # Coordinate of condition PCs
-        c_pos_emb = self.coord_embedding.embed(latent["coord"])     # (bs * n_points, emb_dim)
+        c_pos_emb = self.coord_embedding.embed(latent["coord"])     # (n_points, emb_dim)
         
         # Normal of condition PCs
-        normal_emb = self.normal_embedding.embed(latent["normal"])  # (bs * n_points, emb_dim)
+        normal_emb = self.normal_embedding.embed(latent["normal"])  # (n_points, emb_dim)
 
         # Scale of condition PCs
         scale_emb = self.scale_embedding.embed(scale.unsqueeze(-1)) # (n_valid_parts, emb_dim)
-        scale_emb = scale_emb[latent["batch"]]                      # (bs * n_points, emb_dim)
+        scale_emb = scale_emb[latent["batch"]]                      # (n_points, emb_dim)
 
         # Concatenate with point features
         x = torch.cat([latent["feat"], c_pos_emb, x_pos_emb, normal_emb, scale_emb], dim=-1)

@@ -6,15 +6,16 @@ Author: Xiaoyang Wu (xiaoyang.wu.cs@gmail.com)
 Please cite our work if the code is helpful to you.
 """
 
-import sys
-from functools import partial
-from addict import Dict
 import math
+import sys
+from collections import OrderedDict
+from functools import partial
+
+import spconv.pytorch as spconv
 import torch
 import torch.nn as nn
-import spconv.pytorch as spconv
 import torch_scatter
-from collections import OrderedDict
+from addict import Dict
 
 try:
     import flash_attn

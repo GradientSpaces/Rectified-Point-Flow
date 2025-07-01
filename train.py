@@ -1,19 +1,23 @@
 """Training script for Rectified Point Flow."""
 
+import logging
+import os
+import warnings
+
+import hydra
 import lightning as L
 import torch
-import hydra
-import os
-import logging
 from omegaconf import DictConfig
 
 from rectified_point_flow.utils.training import (
     setup_loggers,
     setup_wandb_resume,
+    log_config_to_wandb,
     log_code_to_wandb,
 )
 
 logger = logging.getLogger("Train")
+warnings.filterwarnings("ignore", module="lightning")  # ignore warning from lightning' connectors
 
 # Optimize for performance
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -30,7 +34,7 @@ def setup_training(cfg: DictConfig):
     trainer: L.Trainer = hydra.utils.instantiate(cfg.trainer, logger=loggers)
     return model, datamodule, trainer, loggers 
 
-@hydra.main(version_base="1.3", config_path="./config", config_name="RPF_base_joint")
+@hydra.main(version_base="1.3", config_path="./config", config_name="RPF_base_main")
 def main(cfg: DictConfig):
     """Entry point for training the model."""
 
@@ -47,10 +51,11 @@ def main(cfg: DictConfig):
 
     # Setup training components
     model, datamodule, trainer, loggers = setup_training(cfg)
-    
-    # Log code to wandb
-    log_code_to_wandb(loggers, trainer.strategy.global_rank)
-    
+
+    # Log config
+    log_config_to_wandb(loggers, cfg)
+    log_code_to_wandb(loggers)
+
     # Start training
     trainer.fit(
         model,

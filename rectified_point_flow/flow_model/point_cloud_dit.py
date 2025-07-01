@@ -1,4 +1,4 @@
-"""Point Cloud Diffusion Transformer (DiT) model."""
+"""Multi-part Point Cloud Diffusion Transformer (DiT) model."""
 
 import torch
 import torch.nn as nn
@@ -8,22 +8,12 @@ from .layer import DiTLayer
 
 
 class PointCloudDiT(nn.Module):
-    """Point cloud Diffusion Transformer model.
-    
-    A simplified transformer-based diffusion model for processing structured point cloud data
-    with part-based representations. The model uses hierarchical attention mechanisms
-    with both local (within-part) and global (cross-part) attention.
-    
-    Query-key normalization is always enabled, and bidirectional processing is disabled
-    for simplicity.
-    
-    Args:
-        in_dim: Input feature dimension.
-        out_dim: Output feature dimension.
-        embed_dim: Embedding dimension for the transformer.
-        num_layers: Number of transformer layers.
-        num_heads: Number of attention heads.
-        dropout_rate: Dropout probability.
+    """A transformer-based diffusion model for multi-part point cloud data.
+
+    Ref:
+        DiT: https://github.com/facebookresearch/DiT
+        mmdit: https://github.com/lucidrains/mmdit/tree/main/mmdit
+        GARF: https://github.com/ai4ce/GARF
     """
 
     def __init__(
@@ -33,10 +23,21 @@ class PointCloudDiT(nn.Module):
         embed_dim: int,
         num_layers: int,
         num_heads: int,
-        dropout_rate: float,
+        dropout_rate: float = 0.0,
         attn_dtype: torch.dtype = torch.float16,
-        activation: nn.Module = nn.SiLU,
+        final_mlp_act: nn.Module = nn.SiLU,
     ):
+        """
+        Args:
+            in_dim: Input dimension of the point features (e.g., 64).
+            out_dim: Output dimension (e.g., 3 for velocity field).
+            embed_dim: Hidden dimension of the transformer layers (e.g., 512).
+            num_layers: Number of transformer layers (e.g., 6). 
+            num_heads: Number of attention heads (e.g., 8).
+            dropout_rate: Dropout rate, default 0.0.
+            attn_dtype: Attention data type, default float16.
+            final_mlp_act: Activation function for the final MLP, default SiLU.
+        """
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
@@ -45,10 +46,10 @@ class PointCloudDiT(nn.Module):
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
         self.attn_dtype = attn_dtype
-        self.activation = activation
+        self.final_mlp_act = final_mlp_act
 
         # Reference part embedding for distinguishing anchor vs. moving parts
-        self.ref_part_emb = nn.Embedding(2, self.embed_dim)
+        self.anchor_part_emb = nn.Embedding(2, self.embed_dim)
 
         # Point cloud encoding manager
         self.encoding_manager = PointCloudEncodingManager(
@@ -64,11 +65,6 @@ class PointCloudDiT(nn.Module):
                 num_attention_heads=self.num_heads,
                 attention_head_dim=self.embed_dim // self.num_heads,
                 dropout=self.dropout_rate,
-                activation_fn="geglu",
-                num_embeds_ada_norm=6 * self.embed_dim,
-                attention_bias=False,
-                norm_elementwise_affine=True,
-                final_dropout=False,
                 attn_dtype=self.attn_dtype,
             )
             for _ in range(self.num_layers)
@@ -77,80 +73,84 @@ class PointCloudDiT(nn.Module):
         # MLP for final predictions
         self.final_mlp = nn.Sequential(
             nn.Linear(self.embed_dim, self.embed_dim),
-            self.activation(),
+            self.final_mlp_act(),
             nn.Linear(self.embed_dim, self.embed_dim // 2),
-            self.activation(),
-            nn.Linear(self.embed_dim // 2, out_dim),
+            self.final_mlp_act(),
+            nn.Linear(self.embed_dim // 2, out_dim, bias=False)  # No bias for 3D coordinates
         )
 
-    def add_reference_part_embedding(
+    def _add_anchor_embedding(
         self,
-        x_emb: torch.Tensor,      # (n_points, embed_dim)
-        ref_part: torch.Tensor,   # (n_valid_parts,) boolean
-        latent: dict,             # PointTransformer Point instance
+        x_emb: torch.Tensor,
+        anchor_part: torch.Tensor,
+        latent: dict,
     ) -> torch.Tensor:
-        """Add reference part embeddings to distinguish reference from moving parts.
+        """Add anchor part embeddings to distinguish anchor from moving parts.
         
         Args:
-            x_emb: Input embeddings of shape (n_points, embed_dim).
-            ref_part: Boolean tensor indicating reference parts of shape (n_valid_parts,).
-            latent: Dictionary containing point cloud features and metadata.
+            x_emb (n_points, embed_dim): Point cloud features.
+            anchor_part (n_valid_parts, ): Boolean tensor indicating anchor parts.
+            latent: PointTransformer's Point instance of conditional point cloud.
             
         Returns:
-            Embeddings with reference part information added.
+            (n_points, embed_dim) Point cloud features with anchor part information added.
         """
-        # ref_part_emb.weight[0] for non-ref part
-        # ref_part_emb.weight[1] for ref part
-        ref_part_broadcasted = ref_part[latent["batch"]]  # (n_points,)
-        ref_part_emb = self.ref_part_emb.weight[0].repeat(ref_part_broadcasted.shape[0], 1)
-        ref_part_emb[ref_part_broadcasted.to(torch.bool)] = self.ref_part_emb.weight[1]
-        x_emb = x_emb + ref_part_emb
+        # anchor_part_emb.weight[0] for non-anchor part
+        # anchor_part_emb.weight[1] for anchor part
+        anchor_part_broadcasted = anchor_part[latent["batch"]]          # (n_points,)
+        anchor_part_emb = self.anchor_part_emb.weight[0].repeat(
+            anchor_part_broadcasted.shape[0], 1
+        )                                                               # (n_points, embed_dim)
+        anchor_part_emb[anchor_part_broadcasted.to(torch.bool)] = self.anchor_part_emb.weight[1]  # (n_points, embed_dim)
+        x_emb = x_emb + anchor_part_emb
         return x_emb
 
     def forward(
         self,
-        x: torch.Tensor,          # (n_points, 3)
-        timesteps: torch.Tensor,  # (n_valid_parts,)
-        latent: dict,             # PointTransformer Point instance
-        part_valids: torch.Tensor,# (B, P)
-        scale: torch.Tensor,      # (n_valid_parts, 1)
-        ref_part: torch.Tensor,   # (n_valid_parts,)
+        x: torch.Tensor,
+        timesteps: torch.Tensor,
+        latent: dict,
+        part_valids: torch.Tensor,
+        scale: torch.Tensor,
+        anchor_part: torch.Tensor,
     ) -> dict:
         """Forward pass through the PointCloudDiT model.
         
         Args:
-            x: Input tensor of shape (n_points, 3).
-            timesteps: Diffusion timesteps of shape (n_valid_parts,).
-            latent: Dictionary containing point cloud features and metadata:
-                - "coord": Point coordinates
-                - "feat": Point features  
-                - "normal": Point normals
-                - "batch": Batch indices
-            part_valids: Valid parts mask of shape (B, P).
-            scale: Scale factors of shape (n_valid_parts, 1).
-            ref_part: Reference part indicators of shape (n_valid_parts,).
+            x (n_points, 3): Noise point coordinates.
+            timesteps (n_valid_parts, ): Float tensor of timesteps.
+            latent: PointTransformer's Point instance of conditional point cloud:
+                - "coord" (n_points, 3): Point coordinates
+                - "normal" (n_points, 3): Point normals
+                - "feat" (n_points, in_dim): Point features  
+                - "batch" (n_points, ): Integer tensor of batch indices.
+            part_valids (bs, max_parts): bool tensor. True => valid parts.
+            scale (n_valid_parts, ): float tensor of part scale factor.
+            anchor_part (n_valid_parts, ): bool tensor, True => anchor parts.
             
         Returns:
-            Dictionary containing predictions with key "pred".
+            Tensor of shape (n_points, out_dim)
         """
 
         # Encoding
-        x = self.encoding_manager(x, latent, scale)
-        x = self.add_reference_part_embedding(x, ref_part, latent)
+        x = self.encoding_manager(x, latent, scale)                     # (n_points, embed_dim)
+        x = self._add_anchor_embedding(x, anchor_part, latent)          # (n_points, embed_dim)
         
         # Prepare attention metadata
-        self_attn_seqlen = torch.bincount(latent["batch"])  # (n_valid_parts,)
-        self_attn_max_seqlen = self_attn_seqlen.max()
+        self_attn_seqlen = torch.bincount(latent["batch"])              # (n_valid_parts, )
+        self_attn_max_seqlen = self_attn_seqlen.max()                   # (1)
         self_attn_cu_seqlens = nn.functional.pad(
             torch.cumsum(self_attn_seqlen, 0), (1, 0)
-        ).to(torch.int32)
-        points_per_part = torch.zeros_like(part_valids, dtype=self_attn_seqlen.dtype)
-        points_per_part[part_valids] = self_attn_seqlen
-        global_attn_seqlen = points_per_part.sum(1)
-        global_attn_max_seqlen = global_attn_seqlen.max()
+        ).to(torch.int32)                                               # (n_valid_parts + 1, )
+        points_per_part = torch.zeros_like(
+            part_valids, dtype=self_attn_seqlen.dtype
+        )                                                               # (bs, max_parts)
+        points_per_part[part_valids] = self_attn_seqlen                 # (bs, max_parts)
+        global_attn_seqlen = points_per_part.sum(1)                     # (bs, )
+        global_attn_max_seqlen = global_attn_seqlen.max()               # (1)
         global_attn_cu_seqlens = nn.functional.pad(
             torch.cumsum(global_attn_seqlen, 0), (1, 0)
-        ).to(torch.int32)
+        ).to(torch.int32)                                               # (bs + 1, )
 
         # Transformer layers
         for layer in self.transformer_layers:
@@ -158,24 +158,22 @@ class PointCloudDiT(nn.Module):
                 hidden_states=x,
                 timestep=timesteps,
                 batch=latent["batch"],
-                self_attn_seqlens=self_attn_seqlen,
                 self_attn_cu_seqlens=self_attn_cu_seqlens,
                 self_attn_max_seqlen=self_attn_max_seqlen,
-                global_attn_seqlens=global_attn_seqlen,
                 global_attn_cu_seqlens=global_attn_cu_seqlens,
                 global_attn_max_seqlen=global_attn_max_seqlen,
-            )
+            )                                                           # (n_points, embed_dim)
 
-        return self.final_mlp(x.float())
+        return self.final_mlp(x.float())                                # (n_points, out_dim)
     
 
 if __name__ == "__main__":
     model = PointCloudDiT(
-        in_dim=512,
+        in_dim=64,
         out_dim=6,
         embed_dim=512,
         num_layers=6,
         num_heads=8,
-        dropout_rate=0.1,
+        dropout_rate=0.0,
     )
     print(f"PointCloudDiT with {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M parameters")

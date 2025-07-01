@@ -1,9 +1,7 @@
-from typing import List, Dict
 import random
 
 import numpy as np
 import torch
-
 
 # Checkpoint Loading
 
@@ -11,7 +9,7 @@ def load_checkpoint_for_module(
     module: torch.nn.Module,
     checkpoint_path: str,
     prefix_to_remove: str = None,
-    prefix_to_substitute: dict = None,
+    keys_to_substitute: dict = None,
     prefix_to_add: str = None,
     strict: bool = False,
 ) -> dict:
@@ -21,7 +19,7 @@ def load_checkpoint_for_module(
         module: The PyTorch module to load the checkpoint into
         checkpoint_path: Path to the checkpoint file
         prefix_to_remove: Prefix to remove from checkpoint keys (e.g., "module.")
-        prefix_to_substitute: Prefix to substitute in checkpoint keys (e.g., {"encoder.": "feature_extractor."})
+        keys_to_substitute: Prefix to substitute in checkpoint keys (e.g., {"encoder.": "feature_extractor."})
         prefix_to_add: Prefix to add to checkpoint keys (e.g., "encoder.")
         strict: Whether to strictly enforce that keys match
         
@@ -40,9 +38,9 @@ def load_checkpoint_for_module(
             if k.startswith(prefix_to_remove)
         }
     
-    # Handle prefix substitution
-    if prefix_to_substitute is not None:
-        for old_prefix, new_prefix in prefix_to_substitute.items():
+    # Handle keys substitution
+    if keys_to_substitute is not None:
+        for old_prefix, new_prefix in keys_to_substitute.items():
             state_dict = {
                 k.replace(old_prefix, new_prefix): v 
                 for k, v in state_dict.items()

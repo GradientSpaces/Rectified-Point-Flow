@@ -2,6 +2,7 @@
 
 import math
 from functools import partial
+from typing import Callable
 
 import lightning as L
 import torch
@@ -9,8 +10,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .eval.evaluator import Evaluator
-from .utils.checkpoint import load_checkpoint_for_module, set_rng_state, get_rng_state
-from .utils.metrics import MetricsHandler
+from .utils.checkpoint import get_rng_state, load_checkpoint_for_module, set_rng_state
+from .utils.logging import MetricsMeter, log_metrics_on_step, log_metrics_on_epoch
+from .utils.point_clouds import broadcast_batch_to_part, flatten_valid_parts
 
 
 class RectifiedPointFlow(L.LightningModule):
@@ -22,25 +24,28 @@ class RectifiedPointFlow(L.LightningModule):
         flow_model: nn.Module,
         optimizer: "partial[torch.optim.Optimizer]",
         lr_scheduler: "partial[torch.optim.lr_scheduler._LRScheduler]" = None,
-        inference_config: dict = None,
-        feature_extractor_ckpt: str = None,
+        encoder_ckpt: str = None,
         flow_model_ckpt: str = None,
         timestep_sampling: str = "u-shaped",
+        inference_sampling_steps: int = 40,
+        pred_proc_fn: Callable | None = None,
+        sample_proc_fn: Callable | None = None,
     ):
         super().__init__()
         self.feature_extractor = feature_extractor
         self.flow_model = flow_model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
-        self.inference_config = inference_config or dict()
         self.timestep_sampling = timestep_sampling
+        self.inference_sampling_steps = inference_sampling_steps
+        self.pred_proc_fn = pred_proc_fn
+        self.sample_proc_fn = sample_proc_fn
 
         # Load checkpoints
-        if feature_extractor_ckpt is not None:
+        if encoder_ckpt is not None:
             load_checkpoint_for_module(
                 self.feature_extractor,
-                feature_extractor_ckpt,
-                prefix_to_remove="feature_extractor.",
+                encoder_ckpt,
                 strict=False,
             )
 
@@ -53,19 +58,30 @@ class RectifiedPointFlow(L.LightningModule):
             )
 
         # Initialize
-        self.freeze_feature_extractor()
-        self.metrics_handler = MetricsHandler(self)
         self.evaluator = Evaluator(self)
+        self.meter = MetricsMeter(self)
+        self._freeze_encoder()
 
-    def freeze_feature_extractor(self):
-        """Ensure feature extractor stays in eval mode."""
+    def _freeze_encoder(self):
         self.feature_extractor.eval()
         for module in self.feature_extractor.modules():
             module.eval()
         for param in self.feature_extractor.parameters():
             param.requires_grad = False
 
-    def sample_timesteps(
+    def on_train_epoch_start(self):
+        super().on_train_epoch_start()
+        self._freeze_encoder()
+
+    def on_validation_epoch_start(self):
+        super().on_validation_epoch_start()
+        self._freeze_encoder()
+
+    def on_test_epoch_start(self):
+        super().on_test_epoch_start()
+        self._freeze_encoder()
+
+    def _sample_timesteps(
         self,
         batch_size: int,
         logit_mean: float = 0.0,
@@ -91,7 +107,7 @@ class RectifiedPointFlow(L.LightningModule):
             raise ValueError(f"Invalid timestep sampling mode: {self.timestep_sampling}")
         return u 
     
-    def extract_features(self, data_dict: dict):
+    def _encode(self, data_dict: dict):
         """Extract features from input data using FP16."""
         with torch.inference_mode():
             with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=True):
@@ -100,174 +116,207 @@ class RectifiedPointFlow(L.LightningModule):
         points["batch"] = points["batch_level1"].clone()
         return points
 
-    def get_targets(self, x0: torch.Tensor, x1: torch.Tensor, t: torch.Tensor) -> tuple:
-        """Compute learning targets for rectified flow:
-            - linear interpolation point cloud (x_t),
-            - velocity field (v_t)
-        """
-        t = t.view(-1, 1, 1)            # (B, 1, 1)
-        x_t = (1 - t) * x0 + t * x1     # interpolated point cloud
-        v_t = x1 - x0                   # velocity field
-        return x_t, v_t
+    def _compute_flow_target(self, x_0: torch.Tensor, x_1: torch.Tensor, t: torch.Tensor) -> tuple:
+        """Compute the learning target of rectified flow.
 
-    def log_metrics(self, metrics: dict):
-        """Log metrics."""
-        if self.trainer.global_rank == 0:
-            for metric_name, metric_value in metrics.items():
-                self.log(
-                    f"train/{metric_name}",
-                    metric_value,
-                    on_step=True,
-                    on_epoch=False,
-                    prog_bar=True,
-                    rank_zero_only=True,
-                )
+        Args:
+            x0: Ground truth point cloud
+            x1: Noise point cloud
+            t: Timesteps
+
+        Returns:
+            x_t: Linear interpolation point cloud
+            v_t: Velocity field
+        """
+        t = t.view(-1, 1, 1)              # [B, 1, 1]
+        x_t = (1 - t) * x_0 + t * x_1     # interpolated point cloud
+        v_t = x_1 - x_0                   # velocity field
+        return x_t, v_t
 
     def forward(self, data_dict: dict):
         """Forward pass for training using rectified flow."""
-        B, P = data_dict["points_per_part"].shape
-        part_valids = data_dict["points_per_part"] != 0
-
-        # Extract features
-        latent = self.extract_features(data_dict)
-
-        # Compute learning targets
-        t = self.sample_timesteps(batch_size=B)
-        x1 = data_dict["pointclouds_gt"]
-        x0 = torch.randn_like(x1)
-        x_t, v_target = self.get_targets(x0, x1, t)
         
-        # Apply anchor constraints
+        points_per_part = data_dict["points_per_part"]
+        x_0 = data_dict["pointclouds_gt"]
+        scale = data_dict["scale"]
+        anchor_part = data_dict["anchor_part"]
+
+        # Encode point clouds
+        latent = self._encode(data_dict)
+        
+        # Sample timesteps
+        t = self._sample_timesteps(batch_size=x_0.shape[0])
+        timesteps = broadcast_batch_to_part(t, points_per_part)
+        
+        # Sample noise and compute flow target
+        x_1 = torch.randn_like(x_0)
+        x_t, v_t = self._compute_flow_target(x_0, x_1, t)
+        
+        # Apply anchor part constraints
+        anchor_part = flatten_valid_parts(anchor_part, points_per_part)
+        part_scale = flatten_valid_parts(scale, points_per_part)
+        anchor_idx = anchor_part[latent['batch']]
+        x_0 = x_0.reshape(-1, 3)
         x_t = x_t.reshape(-1, 3)
-        v_target = v_target.reshape(-1, 3)
-        anchor_idx = data_dict["ref_part"][part_valids][latent['batch']]
-        v_target[anchor_idx] = 0.0
-        t_expanded = t.repeat_interleave(P).view(-1)
-        t_valid = t_expanded[part_valids.flatten()]  # Only valid parts
+        v_t = v_t.reshape(-1, 3)
+        x_t[anchor_idx] = x_0[anchor_idx]
+        v_t[anchor_idx] = 0.0
         
         # Predict velocity field
         v_pred = self.flow_model(
             x=x_t,
-            timesteps=t_valid,
+            timesteps=timesteps,
             latent=latent,
-            part_valids=part_valids,
-            scale=data_dict["scale"][part_valids],
-            ref_part=data_dict["ref_part"][part_valids],
+            part_valids=points_per_part != 0,
+            scale=part_scale,
+            anchor_part=anchor_part,
         )
-        return {
+        
+        output_dict = {
+            "t": timesteps,
             "v_pred": v_pred,
-            "v_target": v_target,
+            "v_t": v_t,
+            "x_0": x_0,
+            "x_1": x_1,
             "x_t": x_t,
-            "t": t_valid,
             "latent": latent,
         }
 
+        if self.pred_proc_fn is not None:
+            output_dict = self.pred_proc_fn(output_dict)
+        return output_dict
+
     def loss(self, output_dict: dict):
-        """Compute rectified flow loss (simple MSE on velocity field)."""
+        """Compute rectified flow loss."""
         v_pred = output_dict["v_pred"]
-        v_target = output_dict["v_target"]
-        flow_loss = F.mse_loss(v_pred, v_target, reduction="mean")
+        v_t = output_dict["v_t"]
+        loss = F.mse_loss(v_pred, v_t, reduction="mean")
+
         return {
-            "mse_loss": flow_loss,
-            "pred_norm": v_pred.norm(dim=-1).mean(),
-            "target_norm": v_target.norm(dim=-1).mean(),
+            "loss": loss,
+            "norm_v_pred": v_pred.norm(dim=-1).mean(),
+            "norm_v_t": v_t.norm(dim=-1).mean(),
         }
 
     def training_step(self, data_dict: dict, batch_idx: int):
         """Training step."""
-        loss_dict = self.loss(self(data_dict))
-        self.log_metrics(loss_dict)
-        return loss_dict["mse_loss"]
+        output_dict = self.forward(data_dict)
+        loss_dict = self.loss(output_dict)
+        log_metrics_on_step(self, loss_dict, prefix="train")
+        return loss_dict["loss"]
 
     def validation_step(self, data_dict: dict, batch_idx: int):
         """Validation step."""
-        loss_dict = self.loss(self(data_dict))
-
-        eval_results = self.evaluator.run_evaluation(data_dict, save_results=False)
-        self.metrics_handler.add_metrics(dataset_names=data_dict['dataset_name'], **eval_results)
-        loss_dict.update({k: v.mean() for k, v in eval_results.items()})
-        return loss_dict
+        output_dict = self.forward(data_dict)
+        loss_dict = self.loss(output_dict)
+        pointclouds_pred = self.sample_rectified_flow(
+            data_dict, output_dict["latent"]
+        )
+        eval_results = self.evaluator.run(data_dict, pointclouds_pred)
+        self.meter.add_metrics(
+            dataset_names=data_dict['dataset_name'], **eval_results
+        )
+        return loss_dict["loss"]
 
     def test_step(self, data_dict: dict, batch_idx: int):
-        """Test step with comprehensive evaluation."""
-        loss_dict = self.loss(self(data_dict))
-
-        eval_results = self.evaluator.run_evaluation(data_dict, save_results=True)
-        self.metrics_handler.add_metrics(dataset_names=data_dict['dataset_name'], **eval_results)
-        loss_dict.update({k: v.mean() for k, v in eval_results.items()})
-        return loss_dict
-
+        """Test step."""
+        latent = self._encode(data_dict)
+        trajectory = self.sample_rectified_flow(data_dict, latent, return_tarjectory=True)
+        pointclouds_pred = trajectory[-1]
+        eval_results = self.evaluator.run(data_dict, pointclouds_pred)
+        self.meter.add_metrics(
+            dataset_names=data_dict['dataset_name'], **eval_results
+        )
+        outputs = {
+            'pointclouds_pred': pointclouds_pred, 
+            'trajectory': trajectory,
+            **eval_results
+        }
+        return outputs
+    
     def sample_rectified_flow(
         self, 
-        x0: torch.Tensor, 
+        data_dict: dict,
         latent: dict, 
-        part_valids: torch.Tensor,
-        part_scale: torch.Tensor,
-        ref_part: torch.Tensor,
-        anchor_idx: torch.Tensor,
-        num_steps: int = 20,
+        x_1: torch.Tensor | None = None,
         return_tarjectory: bool = False,
     ) -> torch.Tensor | list[torch.Tensor]:
         """Sample from rectified flow using Euler integration.
         
         Args:
-            x0: Initial noise
+            data_dict: Input data dictionary
             latent: Feature latent dictionary
-            part_valids: Valid parts mask
-            part_scale: Part scaling factors
-            ref_part: Reference part indicators
-            anchor_idx: Anchor indices for constraints
-            num_steps: Number of integration steps
+            x_1: Optional initial noise. If None, generates random Gaussian noise.
             return_tarjectory: Whether to return the trajectory
             
         Returns:
-            Predicted point cloud or list of predicted point clouds if return_tarjectory is True
+            (num_points, 3) if return_tarjectory == False
+            (num_steps, num_points, 3) if return_tarjectory == True
         """
-        dt = 1.0 / num_steps
-        x_t = x0.clone()
+        dt = 1.0 / self.inference_sampling_steps
+        device = self.device
+        
+        points_per_part = data_dict["points_per_part"]
+        part_valids = points_per_part != 0
+        anchor_part = flatten_valid_parts(data_dict["anchor_part"], points_per_part)
+        anchor_idx = anchor_part[latent['batch']]
+        part_scale = flatten_valid_parts(data_dict["scale"], points_per_part)
+
+        x_0 = data_dict["pointclouds_gt"]
+        if x_1 is None:
+            x_1 = torch.randn_like(x_0)
+
+        x_0 = x_0.reshape(-1, 3)                         # (num_points, 3)
+        x_1 = x_1.reshape(-1, 3)                         # (num_points, 3)
+        x_t = x_1.clone()                                # (num_points, 3)
+        x_t[anchor_idx] = x_0[anchor_idx]                # (num_points, 3)
+
         trajectory = []
-        for step in range(num_steps):
-            t = step * dt
-            t_tensor = torch.full((len(part_scale),), t, device=x_t.device)
+        for step in range(self.inference_sampling_steps):
+            t = 1 - step * dt
+            timesteps = torch.full((len(anchor_part),), t, device=device)
             v_pred = self.flow_model(
                 x=x_t,
-                timesteps=t_tensor,
+                timesteps=timesteps,
                 latent=latent,
                 part_valids=part_valids,
                 scale=part_scale,
-                ref_part=ref_part,
-            )
-            x_t = x_t + dt * v_pred
-            x_t[anchor_idx] = x0[anchor_idx]
+                anchor_part=anchor_part,
+            )                                            # (num_points, 3)
+            if self.sample_proc_fn is not None:
+                v_pred = self.sample_proc_fn(v_pred, x_t, x_1, x_0, t)
+            
+            x_t = x_t - dt * v_pred
+            x_t[anchor_idx] = x_0[anchor_idx]
             if return_tarjectory:
                 trajectory.append(x_t.clone())
     
         if return_tarjectory:
-            return trajectory
-        return x_t
-    
-    def on_train_epoch_start(self):
-        super().on_train_epoch_start()
-        self.freeze_feature_extractor()
-
-    def on_test_epoch_start(self):
-        super().on_test_epoch_start()
-        self.freeze_feature_extractor()
-
-    def on_validation_epoch_start(self):
-        super().on_validation_epoch_start()
-        self.freeze_feature_extractor()
+            return torch.stack(trajectory)                  # (num_steps, num_points, 3)
+        return x_t                                          # (num_points, 3)
 
     def on_validation_epoch_end(self):
-        """Aggregate and log validation results."""
-        self.metrics_handler.log_on_epoch_end(prefix="eval")
+        metrics = self.meter.compute_average()
+        log_metrics_on_epoch(self, metrics, prefix="val")
+        return metrics
 
     def on_test_epoch_end(self):
-        """Aggregate and log test results."""
-        self.metrics_handler.log_on_epoch_end(prefix="test")
-
+        metrics = self.meter.compute_average()
+        log_metrics_on_epoch(self, metrics, prefix="test")
+        return metrics
+        
+    def on_save_checkpoint(self, checkpoint):
+        checkpoint["rng_state"] = get_rng_state()
+        return super().on_save_checkpoint(checkpoint)
+    
+    def on_load_checkpoint(self, checkpoint):
+        if "rng_state" in checkpoint:
+            set_rng_state(checkpoint["rng_state"])
+        else:
+            print("No RNG state found in checkpoint.")
+        super().on_load_checkpoint(checkpoint)
+    
     def configure_optimizers(self):
-        """Configure optimizers and schedulers."""
         optimizer = self.optimizer(self.parameters())
 
         if self.lr_scheduler is None:
@@ -279,24 +328,11 @@ class RectifiedPointFlow(L.LightningModule):
             "lr_scheduler": lr_scheduler,
         }
     
-    def on_save_checkpoint(self, checkpoint):
-        """Save checkpoint with RNG states."""
-        checkpoint["rng_state"] = get_rng_state()
-        return super().on_save_checkpoint(checkpoint)
-    
-    def on_load_checkpoint(self, checkpoint):
-        """Restore RNG states."""
-        if "rng_state" in checkpoint:
-            set_rng_state(checkpoint["rng_state"])
-        else:
-            print("No RNG state found in checkpoint.")
-        super().on_load_checkpoint(checkpoint)
-    
 
 if __name__ == "__main__":
     # Test the model
-    from .encoder.pointtransformerv3 import PointTransformerV3Objcentric
     from .encoder import PointCloudEncoder
+    from .encoder.pointtransformerv3 import PointTransformerV3Objcentric
     from .flow_model import PointCloudDiT
 
     lr_scheduler = partial(torch.optim.lr_scheduler.StepLR, step_size=100, gamma=0.1)
