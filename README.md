@@ -52,7 +52,7 @@ To sample from demo data using the trained RPF model, please run:
 ```bash
 python sample.py data_root="./demo/data" log_dir="./demo/"
 ```
-This saves images of the input (unposed) point cloud with multiple generated (assembled) point clouds.
+This saves images of the input (unposed) parts and multiple generations for possible assemblies.
 
 **Renderer:** By default, we use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high-quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer="pytorch3d"` argument. 
 Find more rendering options in [config/visualizer](config/visualizer/default.yaml).
