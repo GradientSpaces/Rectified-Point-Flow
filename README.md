@@ -56,7 +56,6 @@ This saves images of the input (unposed) parts and multiple generations for poss
 
 **Rendering:**  We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high-quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer="pytorch3d"` argument. 
 To save the flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument.
-
 More rendering options are available in [config/visualizer](config/visualizer/default.yaml).
 
 **Custom Checkpoints:** If you've trained a new RPF model with [`train.py`](train.py) (see below), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 
