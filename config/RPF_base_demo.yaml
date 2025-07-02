@@ -1,11 +1,11 @@
-# Rectified Point Flow demo
+# Inference demo
 
 defaults:
   - model: rectified_point_flow
   - data: ikea_partnet_everyday_twobytwo_modelnet_tudl
-  - trainer: main
+  - trainer: infer
   - loggers: wandb
-  - visualizer: default
+  - visualizer: flow
   - _self_
   - override hydra/hydra_logging: disabled
 
@@ -15,11 +15,6 @@ hydra:
   output_subdir: null
   run:
     dir: .
-
-# Trainer
-trainer:
-  devices: 1
-  strategy: auto
   
 # Data
 data_root: ./demo/data
@@ -34,7 +29,7 @@ log_dir: ./demo/
 # Checkpoint path
 ckpt_path: ./weights/RPF_base.ckpt
 
-# Define pretrained checkpoints
+# Model settings
 model:
   encoder_ckpt: null
   flow_model_ckpt: null

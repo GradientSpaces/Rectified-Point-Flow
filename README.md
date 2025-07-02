@@ -58,24 +58,24 @@ This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7
 
 ![RPF Demo](assets/merged_trajectory_grid.gif)
 
-To sample from demo data using the trained RPF model, please run:
+**Assembly Generation:** To sample the trained RPF model on demo data, please run:
 
 ```bash
-python sample.py data_root="./demo/data" log_dir="./demo/"
+python sample.py data_root=./demo/data ckpt_path=./weights/RPF_base.ckpt
 ```
 This saves images of the input (unposed) parts and multiple generations for possible assemblies.
-
-**Rendering:**  We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. 
+We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. 
 To save the flow trajectory as a GIF animation, use `visualizer.save_trajectory=true`.
+
 More rendering options are available in [config/visualizer](config/visualizer/default.yaml).
 
-**Custom Checkpoints:** If you've trained a new RPF model with [`train.py`](train.py) (see below), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 
+**Overlap Prediction:** To visualize the overlap probabilities predicted by the encoder, please run:
 
 ```bash
-python sample.py data_root="./demo/data" log_dir="./demo/RPF" ckpt_path="RPF.ckpt" 
+python predict_overlap.py data_root=./demo/data ckpt_path=./weights/RPF_base_pretrain_ep599.ckpt
 ```
 
-You can browse or download checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/tree/main) (coming soon).
+**Checkpoints:** You can browse or download RPF checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/tree/main) (coming soon).
 
 
 ## 🚀 Training

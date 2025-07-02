@@ -1,9 +1,7 @@
 """Point cloud rendering using PyTorch3D or Mitsuba."""
 
-from typing import Optional
 import colorsys
 import math
-import os
 
 import numpy as np
 import matplotlib.cm as cm
@@ -59,7 +57,7 @@ cmap_dict = {
     "default": CMAP_DEFAULT,
 }
 
-def generate_part_colors(part_ids: torch.Tensor, colormap: str = "default", part_order: str = "random") -> torch.Tensor:
+def part_ids_to_colors(part_ids: torch.Tensor, colormap: str = "default", part_order: str = "random") -> torch.Tensor:
     """Generate colors for parts based on part IDs.
     
     Args:
@@ -135,6 +133,40 @@ def generate_part_colors(part_ids: torch.Tensor, colormap: str = "default", part
     part_indices = part_id_to_color_idx[part_ids]
     colors = unique_colors[part_indices]  # (N, 3)
     return colors
+
+
+def probs_to_colors(
+        probs: torch.Tensor,
+        colormap: str = "matplotlib:Blues",
+        remap_range: tuple[float, float] = (0.15, 0.95),
+    ) -> torch.Tensor:
+    """Convert probabilities [0, 1] to RGB colors using matplotlib colormap.
+    
+    Args:
+        probs: Tensor of shape (N,) containing probabilities in [0, 1].
+        colormap: Name of matplotlib colormap to use (e.g., "viridis", "plasma", etc).
+        remap_range: Remap the probability range before applying the colormap, avoiding extreme colors.
+
+    Returns:
+        RGB colors tensor of shape (N, 3) with values in [0, 1].
+    """
+    device = probs.device
+    if colormap.startswith("matplotlib:"):
+        colormap = colormap.split(":")[1]
+        cmap = cm.get_cmap(colormap)
+    elif colormap == "default":
+        cmap = cm.get_cmap("Blues")
+    else:
+        raise ValueError(f"Invalid colormap: {colormap}")
+
+    # Remap probability from [0, 1] to [remap_range[0], remap_range[1]]
+    probs = remap_range[0] + (remap_range[1] - remap_range[0]) * probs
+    probs = probs.clamp(0, 1)
+
+    probs_np = probs.detach().cpu().numpy()
+    colors_rgba = cmap(probs_np)         # (N, 4)
+    colors_rgb = colors_rgba[:, :3]      # (N, 3)
+    return torch.tensor(colors_rgb, dtype=torch.float32, device=device)
 
 
 def img_tensor_to_pil(image_tensor: torch.Tensor) -> Image: 

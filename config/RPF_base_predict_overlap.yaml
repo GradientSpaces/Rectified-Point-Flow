@@ -1,0 +1,25 @@
+# Overlap prediction
+
+defaults:
+  - model: encoder/ptv3_object
+  - data: ikea_partnet_everyday_twobytwo_modelnet_tudl_objverse
+  - trainer: infer
+  - visualizer: overlap
+  - _self_
+
+# Data
+data_root: ./demo/data
+data:
+  dataset_names: []  # [] means using all datasets in the data_root
+  batch_size: 1
+  num_workers: 1
+
+# Log directory
+log_dir: ./demo/
+
+# Checkpoint path
+ckpt_path: ./weights/RPF_base_pretrain_ep599.ckpt
+
+# Model settings
+model:
+  compute_overlap_points: true
