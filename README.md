@@ -33,23 +33,23 @@ git clone https://github.com/GradientSpaces/Rectified-Point-Flow.git
 cd Rectified-Point-Flow
 ```
 
-We use a Python 3.10 environment for compatibility with the dependencies.
+We use a Python 3.10 environment for compatibility with the dependencies:
 
 ```bash
 conda create -n py310-rpf python=3.10 -y
 conda activate py310-rpf
 ```
 
-Then, use [`poetry`](https://python-poetry.org/) or [`uv`](https://docs.astral.sh/uv/) to install the dependencies.
+Then, use [`poetry`](https://python-poetry.org/) or [`uv`](https://docs.astral.sh/uv/) to install the dependencies:
 
 ```bash
 poetry install  # or `uv sync`
 ```
 
-Alternatively, we provide an [`install_dep.sh`](install_dep.sh) script to bootstrap the environment via pip only.
+Alternatively, we provide an [`install.sh`](install.sh) script to bootstrap the environment via pip only:
 
 ```bash
-bash install_dep.sh
+bash install.sh
 ```
 
 This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7.4`. We've tested it on NVIDIA RTX4090/A100/H100 GPUs with CUDA 12.4.

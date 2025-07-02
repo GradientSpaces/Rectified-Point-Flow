@@ -1,7 +1,7 @@
 [project]
 name = "rectified-point-flow"
 version = "0.1.0"
-description = ""
+description = "Rectified Point Flow: Generic Point Cloud Pose Estimation"
 authors = [
     {name = "Tao Sun",email = "taosun@stanford.edu"}
 ]
