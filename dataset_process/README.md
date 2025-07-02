@@ -33,6 +33,8 @@ data_root/
   ```xml
   <dataset_name>/<object_name>/<fragment_name>
   ```
+- Both binary and ascii PLY files are supported. 
+- All PLY files should have the vertices field. The vertex_normals and faces fields are optional. If faces are empty, the part is treated as a pure point cloud.
 - See the [demo/data](../demo/data) directory for a complete example.
 
 ### 2. HDF5 (Recommended)
@@ -51,14 +53,14 @@ data_root/
         │   └── <fragment_name>/
         │       └── <part_idx>/
         │           ├── vertices      : float32[n, 3]
-        │           ├── normals       : float32[n, 3]
+        │           ├── normals       : float32[n, 3], optional
         │           └── faces         : int64[m, 3], optional
         └── ...
 ```
 
 - `<dataset_name>`, `<object_name>`, and `<fragment_name>` can be any string.
 - `<part_idx>` is a 0-based index indicating the part number.
-- The `faces` field is optional. If empty, the part is treated as a pure point cloud.
+- The `vertices` field is required. The `normals` and `faces` fields are optional. If `faces` is empty, the part is treated as a pure point cloud.
 - The `data_split/<dataset_name>/{train,val}` groups contain lists of fragment keys:
   ```xml
   <dataset_name>/<object_name>/<fragment_name>

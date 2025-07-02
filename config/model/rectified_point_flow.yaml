@@ -20,3 +20,4 @@ lr_scheduler:
 
 timestep_sampling: "u_shaped"
 inference_sampling_steps: 50
+n_generations: 1

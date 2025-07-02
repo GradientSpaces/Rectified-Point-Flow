@@ -1,2 +1,2 @@
 ikea/Table_falholmen/original
-ikea/Chair_skogsta/original
+ikea/Misc_lantliv/original

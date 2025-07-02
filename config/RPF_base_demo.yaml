@@ -38,3 +38,4 @@ ckpt_path: ./weights/RPF_base.ckpt
 model:
   encoder_ckpt: null
   flow_model_ckpt: null
+  n_generations: 3

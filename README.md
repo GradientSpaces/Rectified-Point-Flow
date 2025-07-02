@@ -52,10 +52,10 @@ To sample from demo data using the trained RPF model, please run:
 ```bash
 python sample.py data_root="./demo/data" log_dir="./demo/"
 ```
-This saves the condition and generated point cloud renderings as PNGs.
+This saves the input (conditional) and generated point cloud renderings as PNGs.
 
-**Renderer:** By default, we use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high-quality  ray-traced rendering, as shown above. For a faster rendering, please use [PyTorch3D's PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by setting `visualizer.renderer="pytorch3d"` in the config. 
-See [config/visualizer/default.yaml](config/visualizer/default.yaml) for more details.
+**Renderer:** We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high-quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by setting `visualizer.renderer="pytorch3d"` in the config. 
+See [config/visualizer](config/visualizer/default.yaml) for more renderingoptions.
 
 **Flow Animation:** To save the flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument. Note that this may be slow depending on the renderer.
 
