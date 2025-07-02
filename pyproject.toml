@@ -37,6 +37,7 @@ torch-spline-conv = { version = "*", source = "pyg-cu124" }
 pytorch3d     = { url = "https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt251/pytorch3d-0.7.8-cp310-cp310-linux_x86_64.whl" }
 flash-attn    = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.5cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" }
 lightning     = "2.5.2"
+torchmetrics  = "1.6.3"
 trimesh       = "4.6.4"
 addict        = "2.4.0"
 scipy         = "1.15.2"
