@@ -58,7 +58,7 @@ This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7
 
 ![RPF Demo](assets/merged_trajectory_grid.gif)
 
-**Sampling Assemblies:** To sample the trained RPF model on demo data, please run:
+**Assembly Generation:** To sample the trained RPF model on demo data, please run:
 
 ```bash
 python sample.py data_root=./demo/data ckpt_path=./weights/RPF_base.ckpt
