@@ -55,7 +55,7 @@ python sample.py data_root="./demo/data" log_dir="./demo/"
 This saves the input (conditional) and generated point cloud renderings as PNGs.
 
 **Renderer:** We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high-quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by setting `visualizer.renderer="pytorch3d"` in the config. 
-See [config/visualizer](config/visualizer/default.yaml) for more renderingoptions.
+See [config/visualizer](config/visualizer/default.yaml) for more rendering options.
 
 **Flow Animation:** To save the flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument. Note that this may be slow depending on the renderer.
 
@@ -114,62 +114,14 @@ python train.py --config-name "RPF_base_main" \
 
 ### Custom Datasets
 
-Our codebase supports two data formats: PLY files and HDF5 archives. We strongly recommend using HDF5 format for faster I/O.
-We provide scripts to help convert between these two formats. For details, please refer to [dataset_process/](dataset_process/).
-
-
-### Configurations
-
-RPF uses [Hydra](https://hydra.cc/) for configuration management. The configuration is organized into groups:
-
-<details>
-<summary>Click to expand details.</summary>
-
-#### Root Configurations (`config/`)
-- **`RPF_base_pretrain.yaml`**: Root config for encoder pretraining.
-- **`RPF_base_main.yaml`**: Root config for flow model training.
-
-Relevant parameters:
-- `data_root`: Path to the directory containing HDF5 files.
-- `experiment_name`: The name used for WandB run.
-- `log_dir`: Directory for checkpoints and logs (default: `./output/${experiment_name}`).
-- `seed`: Random seed for reproducibility (default: 42).
-
-#### Model Configurations (`config/model/`)
-- **`rectified_point_flow.yaml`**: Main RPF model configuration
-  - `optimizer`: AdamW optimizer settings (lr: 1e-4, weight_decay: 1e-6)
-  - `lr_scheduler`: MultiStepLR with milestones at [1000, 1300, 1600, 1900]
-  - `timestep_sampling`: Timestep sampling strategy ("u_shaped")
-  - `inference_sampling_steps`: Number of inference steps (default: 20)
-- **`encoder/ptv3_object.yaml`**: Point Transformer V3 encoder configuration
-- **`flow_model/point_cloud_dit.yaml`**: Diffusion Transformer (DiT) configuration
-
-#### Data Configurations (`config/data/`)
-- **`ikea.yaml`**: Single dataset configuration example
-- **`ikea_partnet_everyday_twobytwo_modelnet_tudl.yaml`**: Multi-dataset config for flow model training.
-- **`ikea_partnet_everyday_twobytwo_modelnet_tudl_objverse.yaml`**: Multi-dataset config for encoder pretraining.
-
-Relevant parameters:
-- `num_points_to_sample`: Points to sample per part (default: 5000)
-- `min_parts`/`max_parts`: Range of parts per scene (2-64)
-- `min_points_per_part`: Minimum points required per part (default: 20)
-- `multi_anchor`: Enable multi-anchor training (default: true)
-
-#### Training Configurations (`config/trainer/`)
-Define parameters for Lightning's [Trainer](https://lightning.ai/docs/pytorch/latest/common/trainer.html#). You can add/adjust all the settings supported by Trainer.
-- **`main.yaml`**: Flow model training settings.
-- **`pretrain.yaml`**: Pretraining settings.
-
-#### Logging Configurations (`config/loggers/`)
-- **`wandb.yaml`**: Weights & Biases logging configuration
-
-</details>
+RPF supports two data formats: PLY files and HDF5, but we strongly recommend using HDF5 for faster I/O.
+We provide scripts to help convert between these two formats. See [dataset_process/](dataset_process/) for more details.
 
 
 ### Training and Finetuning
 
 <details>
-<summary>Click to expand details.</summary>
+<summary>Click to expand more usage examples.</summary>
 
 #### Override Parameters
 
@@ -222,6 +174,53 @@ python train.py --config-name "RPF_base_main" \
     trainer.devices=8 \
     trainer.strategy="ddp"
 ```
+</details>
+
+### Configurations
+
+RPF uses [Hydra](https://hydra.cc/) for configuration management.
+
+<details>
+<summary> The configuration is organized into following groups. Click to expand.</summary>
+
+#### Root Configurations (`config/`)
+- `RPF_base_pretrain.yaml`: Root config for encoder pretraining.
+- `RPF_base_main.yaml`: Root config for flow model training.
+
+Relevant parameters:
+- `data_root`: Path to the directory containing HDF5 files.
+- `experiment_name`: The name used for WandB run.
+- `log_dir`: Directory for checkpoints and logs (default: `./output/${experiment_name}`).
+- `seed`: Random seed for reproducibility (default: 42).
+
+#### Model Configurations (`config/model/`)
+- `rectified_point_flow.yaml`: Main RPF model configuration
+  - `optimizer`: AdamW optimizer settings (lr: 1e-4, weight_decay: 1e-6)
+  - `lr_scheduler`: MultiStepLR with milestones at [1000, 1300, 1600, 1900]
+  - `timestep_sampling`: Timestep sampling strategy ("u_shaped")
+  - `inference_sampling_steps`: Number of inference steps (default: 20)
+- `encoder/ptv3_object.yaml`: Point Transformer V3 encoder configuration
+- `flow_model/point_cloud_dit.yaml`: Diffusion Transformer (DiT) configuration
+
+#### Data Configurations (`config/data/`)
+- `ikea.yaml`: Single dataset configuration example
+- `ikea_partnet_everyday_twobytwo_modelnet_tudl.yaml`: Multi-dataset config for flow model training.
+- `ikea_partnet_everyday_twobytwo_modelnet_tudl_objverse.yaml`: Multi-dataset config for encoder pretraining.
+
+Relevant parameters:
+- `num_points_to_sample`: Points to sample per part (default: 5000)
+- `min_parts`/`max_parts`: Range of parts per scene (2-64)
+- `min_points_per_part`: Minimum points required per part (default: 20)
+- `multi_anchor`: Enable multi-anchor training (default: true)
+
+#### Training Configurations (`config/trainer/`)
+Define parameters for Lightning's [Trainer](https://lightning.ai/docs/pytorch/latest/common/trainer.html#). You can add/adjust all the settings supported by Trainer.
+- `main.yaml`: Flow model training settings.
+- `pretrain.yaml`: Pretraining settings.
+
+#### Logging Configurations (`config/loggers/`)
+- `wandb.yaml`: Weights & Biases logging configuration
+
 </details>
 
 
