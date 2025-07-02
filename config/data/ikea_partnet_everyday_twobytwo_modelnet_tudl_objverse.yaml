@@ -6,7 +6,16 @@ min_points_per_part: 20
 multi_anchor: true
 
 data_root: ${data_root}
-dataset_names: ["ikea", "partnet_v0", "everyday", "twobytwo", "modelnet", "tudl", "objaverse_v1"]
+dataset_names: ["ikea", "partnet", "everyday", "twobytwo", "modelnet", "tudl", "objaverse_v1"]
+up_axis: {
+  "ikea": "y",
+  "partnet": "y",
+  "everyday": "z",
+  "twobytwo": "y",
+  "modelnet": "y",
+  "tudl": "z",
+  "objaverse_v1": "y",
+}
 
 batch_size: 4
 num_workers: 2

@@ -1,4 +1,4 @@
-# Main configuration for Rectified Point Flow training
+# Training Rectified Point Flow
 
 defaults:
   - model: rectified_point_flow
@@ -21,7 +21,7 @@ hydra:
   run:
     dir: ${log_dir}
 
-# Define pretrained checkpoints
+# Model settings
 model:
   encoder_ckpt: null
   flow_model_ckpt: null

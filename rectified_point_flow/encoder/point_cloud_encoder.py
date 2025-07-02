@@ -121,14 +121,12 @@ class PointCloudEncoder(pl.LightningModule):
         
         # Overlap prediction
         overlap_logits = self.overlap_head(point_features)
-        overlap_pred = torch.sigmoid(overlap_logits)
-        overlap_pred_binary = overlap_pred > 0.5
+        overlap_prob = torch.sigmoid(overlap_logits)
 
         # Prepare output dictionary
         output = {
             "overlap_logits": overlap_logits,
-            "overlap_pred": overlap_pred,
-            "overlap_pred_binary": overlap_pred_binary,
+            "overlap_prob": overlap_prob,
             "point": point_data,
             "super_point": super_point_data,
         }
@@ -149,7 +147,7 @@ class PointCloudEncoder(pl.LightningModule):
         )
         
         # Compute metrics
-        pred_binary = predictions["overlap_pred_binary"]
+        pred_binary = predictions["overlap_prob"] > 0.5
         target = predictions["overlap_mask"]
         metrics = {
             "accuracy": torchmetrics.functional.accuracy(pred_binary, target, task="binary"),
@@ -199,17 +197,11 @@ class PointCloudEncoder(pl.LightningModule):
             print(f"Validation step error: {e}")
             return None
 
-    def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, torch.Tensor]:
         """Test step."""
         predictions = self.forward(batch)
         loss, metrics = self.loss(predictions, batch)
-        self.log_dict(
-            {f"test/{k}": v for k, v in metrics.items()}, 
-            on_step=True,
-            on_epoch=True, 
-            sync_dist=True
-        )
-        return loss
+        return {"loss": loss, **metrics, **predictions}
 
     def configure_optimizers(self):
         """Configure optimizers and learning rate schedulers."""

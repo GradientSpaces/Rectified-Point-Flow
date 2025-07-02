@@ -1,4 +1,4 @@
-_target_: rectified_point_flow.visualizer.VisualizationCallback
+_target_: rectified_point_flow.visualizer.FlowVisualizationCallback
 
 save_dir: ${log_dir}
 
@@ -26,7 +26,7 @@ point_radius: 0.015       # Radius of sphere of each point
 # Camera parameters
 camera_dist: 4.0          # Distance from the camera to the point cloud center
 camera_elev: 30.0         # Elevation angle above the horizon
-camera_azim: 45.0        # Azimuth angle on the horizon plane
+camera_azim: 45.0         # Azimuth angle on the horizon plane
 camera_fov: 40.0          # Field of view
 
 # Trajectory GIF settings

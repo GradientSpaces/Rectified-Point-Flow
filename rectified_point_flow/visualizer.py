@@ -8,22 +8,22 @@ import lightning as L
 import torch
 from lightning.pytorch.callbacks import Callback
 
-from .utils.render import visualize_point_clouds, img_tensor_to_pil, generate_part_colors
+from .utils.render import visualize_point_clouds, img_tensor_to_pil, part_ids_to_colors, probs_to_colors
 from .utils.point_clouds import ppp_to_ids
 
 logger = logging.getLogger("Visualizer")
 
 
 class VisualizationCallback(Callback):
-    """Lightning callback for visualizing point cloud assemblies during evaluation."""
+    """Base Lightning callback for visualizing point clouds during evaluation."""
 
     def __init__(
         self,
         save_dir: Optional[str] = None,
         renderer: str = "mitsuba",
+        colormap: str = "default",
         scale_to_original_size: bool = False,
         center_points: bool = False,
-        colormap: str = "Set2",
         image_size: int = 512,
         point_radius: float = 0.015,
         camera_dist: float = 4.0,
@@ -31,11 +31,8 @@ class VisualizationCallback(Callback):
         camera_azim: float = 30.0,
         camera_fov: float = 45.0,
         max_samples_per_batch: Optional[int] = None,
-        save_trajectory: bool = True,
-        trajectory_gif_fps: int = 25,
-        trajectory_gif_pause_last_frame: float = 1.0,
     ):
-        """Initialize visualization callback.
+        """Initialize base visualization callback.
 
         Args:
             save_dir (str): Directory to save images. If None, uses trainer.log_dir/visualizations.
@@ -43,17 +40,13 @@ class VisualizationCallback(Callback):
             scale_to_original_size (bool): If True, scales the point clouds to the original size. 
                 Otherwise, keep the scaling, i.e. [-1, 1]. Default: False.
             center_points: If True, centers the point cloud around the origin. Default: False.
-            colormap (str): Matplotlib colormap name for coloring parts. Default: "Set2".
             image_size (int): Output image resolution (square). Default: 512.
-            point_radius (float): Radius of each rendered point in world units. Default: 0.01.
-            camera_dist (float): Distance (m) of camera from origin. Default: 2.0.
+            point_radius (float): Radius of each rendered point in world units. Default: 0.015.
+            camera_dist (float): Distance (m) of camera from origin. Default: 4.0.
             camera_elev (float): Elevation angle (deg). Default: 20.0.
             camera_azim (float): Azimuth angle (deg). Default: 30.0.
             camera_fov (float): Field of view (deg). Default: 45.0.
             max_samples_per_batch (int): Maximum samples to visualize per batch. None means all.
-            save_trajectory (bool): Whether to save trajectory as GIF. Default: True.
-            trajectory_gif_fps (int): Frames per second for the GIF.
-            trajectory_gif_pause_last_frame (float): Pause time for the last frame in seconds.
         """
         super().__init__()
         self.save_dir = save_dir
@@ -61,9 +54,6 @@ class VisualizationCallback(Callback):
         self.colormap = colormap
         self.scale_to_original_size = scale_to_original_size
         self.max_samples_per_batch = max_samples_per_batch
-        self.save_trajectory = save_trajectory
-        self.trajectory_gif_fps = trajectory_gif_fps
-        self.trajectory_gif_pause_last_frame = trajectory_gif_pause_last_frame
 
         self.vis_dir = None
         self._vis_kwargs = {
@@ -95,8 +85,7 @@ class VisualizationCallback(Callback):
         """Save visualization images for a single sample.
         
         Args:
-            input_points (torch.Tensor): Input point cloud of shape (N, 3).
-            generated_points (torch.Tensor): Generated point cloud of shape (N, 3).
+            points (torch.Tensor): Point cloud of shape (N, 3).
             colors (torch.Tensor): Colors of shape (N, 3).
             sample_idx (int): Global sample index for naming.
             sample_name (str): Optional sample name for filename.
@@ -114,6 +103,42 @@ class VisualizationCallback(Callback):
             image_pil.save(self.vis_dir / f"{base_name}.png")
         except Exception as e:
             logger.error(f"Error saving visualization for sample {sample_idx}: {e}")
+
+    def on_test_batch_end(
+        self,
+        trainer: L.Trainer,
+        pl_module: L.LightningModule,
+        outputs: Any,
+        batch: dict[str, torch.Tensor],
+        batch_idx: int,
+    ) -> None:
+        """Override this method in subclasses for specific visualization logic."""
+        raise NotImplementedError("Subclasses must implement on_test_batch_end")
+
+
+class FlowVisualizationCallback(VisualizationCallback):
+    """Visualization callback for rectified point flow models."""
+
+    def __init__(
+        self,
+        save_trajectory: bool = True,
+        trajectory_gif_fps: int = 25,
+        trajectory_gif_pause_last_frame: float = 1.0,
+        **kwargs
+    ):
+        """Initialize flow visualization callback.
+
+        Args:
+            colormap (str): Matplotlib colormap name for coloring parts. Default: "Set2".
+            save_trajectory (bool): Whether to save trajectory as GIF. Default: True.
+            trajectory_gif_fps (int): Frames per second for the GIF.
+            trajectory_gif_pause_last_frame (float): Pause time for the last frame in seconds.
+            **kwargs: Additional arguments passed to base class.
+        """
+        super().__init__(**kwargs)
+        self.save_trajectory = save_trajectory
+        self.trajectory_gif_fps = trajectory_gif_fps
+        self.trajectory_gif_pause_last_frame = trajectory_gif_pause_last_frame
 
     def _save_trajectory_gif(
         self,
@@ -136,13 +161,12 @@ class VisualizationCallback(Callback):
                 base_name += f"_{sample_name.replace('/', '-')}"
             gif_path = self.vis_dir / f"{base_name}_trajectory.gif"
 
-            # Render all trajectory steps at once using batched visualization
-            # part_ids is the same for all steps, so no need to expand
+            # Render trajectory steps
             rendered_images = visualize_point_clouds(
                 points=trajectory,                                          # (num_steps, N, 3)
                 colors=colors,                                              # (N, 3) - same for all steps
                 **self._vis_kwargs,
-            )   # (num_steps, 3, H, W)
+            )   # (num_steps, H, W, 3)
             
             frames = []
             num_steps = trajectory.shape[0]
@@ -174,7 +198,7 @@ class VisualizationCallback(Callback):
         batch: dict[str, torch.Tensor],
         batch_idx: int,
     ) -> None:
-        """Save visualizations at the end of each test batch."""
+        """Save flow visualizations at the end of each test batch."""
         if self.vis_dir is None:
             return
 
@@ -200,7 +224,7 @@ class VisualizationCallback(Callback):
                 sample_name = batch["name"][i]
 
             # sample colors for each point
-            colors = generate_part_colors(
+            colors = part_ids_to_colors(
                 part_ids[i], colormap=self.colormap, part_order="random"
             )
             for n in range(K):
@@ -234,6 +258,50 @@ class VisualizationCallback(Callback):
                         sample_idx=sample_idx,
                         sample_name=f"{sample_name}-generation-{n+1}",
                     )
+
+            if self.max_samples_per_batch is not None and i >= self.max_samples_per_batch:
+                break
+
+
+class OverlapVisualizationCallback(VisualizationCallback):
+    """Visualization callback for overlap prediction models."""
+
+    def on_test_batch_end(
+        self,
+        trainer: L.Trainer,
+        pl_module: L.LightningModule,
+        outputs: Any,
+        batch: dict[str, torch.Tensor],
+        batch_idx: int,
+    ) -> None:
+        """Save overlap visualizations at the end of each test batch."""
+        if self.vis_dir is None:
+            return
+
+        overlap_prob = outputs["overlap_prob"]                                # (total_points,)
+        points_per_part = batch["points_per_part"]                            # (bs, max_parts)
+        B, _ = points_per_part.shape
+        input_points = batch["pointclouds_gt"].reshape(B, -1, 3)              # (bs, N, 3)
+        overlap_prob = overlap_prob.reshape(B, -1)                            # (bs, N)
+
+        # Scale to original size
+        if self.scale_to_original_size:
+            scale = batch["scale"][:, 0]                                      # (bs,)
+            input_points = input_points * scale[:, None, None]
+
+        for i in range(B):
+            sample_idx = batch_idx * B + i
+            sample_name = None
+            if "name" in batch and batch["name"][i] is not None:
+                sample_name = batch["name"][i]
+            
+            colors = probs_to_colors(overlap_prob[i], colormap=self.colormap)
+            self._save_sample_images(
+                points=input_points[i],
+                colors=colors,
+                sample_idx=sample_idx,
+                sample_name=f"{sample_name}-overlap-pred" if sample_name else f"overlap",
+            )
 
             if self.max_samples_per_batch is not None and i >= self.max_samples_per_batch:
                 break

@@ -1,4 +1,4 @@
-# Pretraining configuration for Rectified Point Flow
+# Pretraining encoder
 
 defaults:
   - model: encoder/ptv3_object

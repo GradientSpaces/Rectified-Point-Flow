@@ -26,6 +26,7 @@ class RectifiedPointFlow(L.LightningModule):
         lr_scheduler: "partial[torch.optim.lr_scheduler._LRScheduler]" = None,
         encoder_ckpt: str = None,
         flow_model_ckpt: str = None,
+        loss_type: str = "mse",
         timestep_sampling: str = "u-shaped",
         inference_sampling_steps: int = 20,
         n_generations: int = 1,
@@ -37,6 +38,7 @@ class RectifiedPointFlow(L.LightningModule):
         self.flow_model = flow_model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
+        self.loss_type = loss_type
         self.timestep_sampling = timestep_sampling
         self.inference_sampling_steps = inference_sampling_steps
         self.n_generations = n_generations
@@ -48,6 +50,7 @@ class RectifiedPointFlow(L.LightningModule):
             load_checkpoint_for_module(
                 self.feature_extractor,
                 encoder_ckpt,
+                prefix_to_remove="feature_extractor.",
                 strict=False,
             )
         if flow_model_ckpt is not None:
@@ -191,7 +194,14 @@ class RectifiedPointFlow(L.LightningModule):
         """Compute rectified flow loss."""
         v_pred = output_dict["v_pred"]
         v_t = output_dict["v_t"]
-        loss = F.mse_loss(v_pred, v_t, reduction="mean")
+        if self.loss_type == "mse":
+            loss = F.mse_loss(v_pred, v_t, reduction="mean")
+        elif self.loss_type == "l1":
+            loss = F.l1_loss(v_pred, v_t, reduction="mean")
+        elif self.loss_type == "huber":
+            loss = F.huber_loss(v_pred, v_t, reduction="mean")
+        else:
+            raise ValueError(f"Invalid loss type: {self.loss_type}")
 
         return {
             "loss": loss,
