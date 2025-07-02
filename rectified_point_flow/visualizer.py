@@ -37,6 +37,7 @@ class VisualizationCallback(Callback):
         Args:
             save_dir (str): Directory to save images. If None, uses trainer.log_dir/visualizations.
             renderer (str): Renderer to use, can be "mitsuba" or "pytorch3d". Default: "mitsuba".
+            colormap (str): Colormap to use. Default: "default".
             scale_to_original_size (bool): If True, scales the point clouds to the original size. 
                 Otherwise, keep the scaling, i.e. [-1, 1]. Default: False.
             center_points: If True, centers the point cloud around the origin. Default: False.
@@ -129,7 +130,6 @@ class FlowVisualizationCallback(VisualizationCallback):
         """Initialize flow visualization callback.
 
         Args:
-            colormap (str): Matplotlib colormap name for coloring parts. Default: "Set2".
             save_trajectory (bool): Whether to save trajectory as GIF. Default: True.
             trajectory_gif_fps (int): Frames per second for the GIF.
             trajectory_gif_pause_last_frame (float): Pause time for the last frame in seconds.
@@ -279,8 +279,7 @@ class OverlapVisualizationCallback(VisualizationCallback):
             return
 
         overlap_prob = outputs["overlap_prob"]                                # (total_points,)
-        points_per_part = batch["points_per_part"]                            # (bs, max_parts)
-        B, _ = points_per_part.shape
+        B, _ = batch["points_per_part"].shape                                 
         input_points = batch["pointclouds_gt"].reshape(B, -1, 3)              # (bs, N, 3)
         overlap_prob = overlap_prob.reshape(B, -1)                            # (bs, N)
 
