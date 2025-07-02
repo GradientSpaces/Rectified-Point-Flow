@@ -19,9 +19,17 @@ pip install https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu12
 # FlashAttention 2.7.4 (work for PyTorch 2.5)
 pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.5cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 
-pip install lightning==2.5.0.post0
+# Trimesh
 pip install trimesh==4.6.4
+
+# Spconv
 pip install spconv-cu120==2.3.6
 
+# Lightning
+pip install lightning==2.5.2
+
+# Torchmetrics
+pip install torchmetrics==1.6.3
+
 # install other dependencies
-pip install --ignore-installed -r requirements.txt 
+pip install --ignore-installed -r requirements_other.txt 

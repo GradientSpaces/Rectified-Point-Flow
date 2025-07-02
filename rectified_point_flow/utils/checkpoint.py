@@ -4,7 +4,7 @@ import logging
 import numpy as np
 import torch
 
-logger = logging.getLogger("Checkpoint")
+logger = logging.getLogger("Utils")
 
 # Checkpoint Loading
 

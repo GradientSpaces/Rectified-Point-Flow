@@ -33,11 +33,22 @@ git clone https://github.com/GradientSpaces/Rectified-Point-Flow.git
 cd Rectified-Point-Flow
 ```
 
-We provide an [`install_dep.sh`](install_dep.sh) script to install all dependencies that we used for development.
+We use a Python 3.10 environment for compatibility with the dependencies.
 
 ```bash
-conda create -n py310-rpf python=3.10
+conda create -n py310-rpf python=3.10 -y
 conda activate py310-rpf
+```
+
+Then, use [`poetry`](https://python-poetry.org/) or [`uv`](https://docs.astral.sh/uv/) to install the dependencies.
+
+```bash
+poetry install  # or `uv sync`
+```
+
+Alternatively, we provide an [`install_dep.sh`](install_dep.sh) script to bootstrap the environment via pip only.
+
+```bash
 bash install_dep.sh
 ```
 
