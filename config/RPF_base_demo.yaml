@@ -1,4 +1,4 @@
-# Main configuration for Rectified Point Flow training
+# Rectified Point Flow demo
 
 defaults:
   - model: rectified_point_flow
@@ -16,7 +16,12 @@ hydra:
   run:
     dir: .
 
-# Demo data
+# Trainer
+trainer:
+  devices: 1
+  strategy: auto
+  
+# Data
 data_root: ./demo/data
 data:
   dataset_names: []  # [] means using all datasets in the data_root
@@ -33,9 +38,3 @@ ckpt_path: ./weights/RPF_base.ckpt
 model:
   encoder_ckpt: null
   flow_model_ckpt: null
-
-# Visualizer
-visualizer:
-  image_size: 512
-  # NOTE: Rendering trajectory as a gif will be slow!
-  save_trajectory: false

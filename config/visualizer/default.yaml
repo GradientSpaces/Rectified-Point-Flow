@@ -20,13 +20,13 @@ scale_to_original_size: false
 colormap: default
 
 # Image settings
-image_size: 256           # Output resolution (square image)
+image_size: 320           # Output resolution (square image)
 point_radius: 0.015       # Radius of sphere of each point
 
 # Camera parameters
 camera_dist: 4.0          # Distance from the camera to the point cloud center
-camera_elev: 30.0         # Elevation angle above the horizon
-camera_azim: 150.0        # Azimuth angle on the horizon plane
+camera_elev: 25.0         # Elevation angle above the horizon
+camera_azim: 120.0        # Azimuth angle on the horizon plane
 camera_fov: 40.0          # Field of view
 
 # Trajectory GIF settings

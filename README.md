@@ -54,9 +54,10 @@ python sample.py data_root="./demo/data" log_dir="./demo/"
 ```
 This saves the condition and generated point cloud renderings as PNGs.
 
-**Renderer:** By default, we use [PyTorch3D's PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) for fast rendering. For higher quality ray-traced renderings (as shown above), we also support rendering with [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) by setting `visualizer.renderer="mitsuba"` in the config file.
+**Renderer:** By default, we use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high-quality  ray-traced rendering, as shown above. For a faster rendering, please use [PyTorch3D's PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by setting `visualizer.renderer="pytorch3d"` in the config. 
+See [config/visualizer/default.yaml](config/visualizer/default.yaml) for more details.
 
-**Flow Animation:** To save the point flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument; note that this will be slow.
+**Flow Animation:** To save the flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument. Note that this may be slow depending on the renderer.
 
 **Custom Checkpoints:** If you've trained a new RPF model with [`train.py`](train.py) (see below), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 
 

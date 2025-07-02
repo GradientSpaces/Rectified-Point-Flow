@@ -26,7 +26,6 @@ try:
     from mitsuba import Transform4f, Point3f, Vector3f
     import drjit as dr
     mitsuba_available = True
-    print("Mitsuba found, using for rendering.")
 except ImportError:
     mitsuba_available = False
 

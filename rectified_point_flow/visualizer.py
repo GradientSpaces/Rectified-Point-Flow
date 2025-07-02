@@ -1,6 +1,7 @@
 """Visualization utilities for point cloud assembly."""
 
 from pathlib import Path
+import logging
 from typing import Any, Optional
 
 import lightning as L
@@ -9,6 +10,8 @@ from lightning.pytorch.callbacks import Callback
 
 from .utils.render import visualize_point_clouds, img_tensor_to_pil, generate_part_colors
 from .utils.point_clouds import ppp_to_ids
+
+logger = logging.getLogger("Visualizer")
 
 
 class VisualizationCallback(Callback):
@@ -81,7 +84,6 @@ class VisualizationCallback(Callback):
             else:
                 self.vis_dir = Path(self.save_dir) / "visualizations"
             self.vis_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Visualization saved to: {self.vis_dir}")
 
     def _save_sample_images(
         self,
@@ -120,9 +122,8 @@ class VisualizationCallback(Callback):
 
             input_pil.save(self.vis_dir / f"{base_name}_condition.png")
             generated_pil.save(self.vis_dir / f"{base_name}_generated.png")
-
         except Exception as e:
-            print(f"Error saving visualization for sample {sample_idx}: {e}")
+            logger.error(f"Error saving visualization for sample {sample_idx}: {e}")
 
     def _save_trajectory_gif(
         self,
@@ -172,9 +173,8 @@ class VisualizationCallback(Callback):
                 loop=0,  # Infinite loop
                 optimize=True
             )
-            
         except Exception as e:
-            print(f"Error saving trajectory GIF for sample {sample_idx}: {e}")
+            logger.error(f"Error saving trajectory GIF for sample {sample_idx}: {e}")
 
     def on_test_batch_end(
         self,
