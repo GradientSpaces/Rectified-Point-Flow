@@ -20,3 +20,6 @@ lightning_logs/
 
 # Demo results
 /demo/visualizations
+
+# Poetry
+poetry.lock

@@ -1,0 +1,55 @@
+[project]
+name = "rectified-point-flow"
+version = "0.1.0"
+description = "Rectified Point Flow: Generic Point Cloud Pose Estimation"
+authors = [
+    {name = "Tao Sun",email = "taosun@stanford.edu"}
+]
+readme = "README.md"
+requires-python = "^3.10"
+
+[[tool.poetry.source]]
+name     = "pypi"
+priority = "primary"
+
+[[tool.poetry.source]]
+name     = "pytorch-cu124"
+url      = "https://download.pytorch.org/whl/cu124"
+priority = "explicit"
+
+[[tool.poetry.source]]
+name     = "pyg-cu124"
+url      = "https://data.pyg.org/whl/torch-2.5.1+cu124.html"
+priority = "explicit"
+
+[tool.poetry.dependencies]
+python        = "^3.10"
+torch         = { version = "2.5.1", source = "pytorch-cu124" }
+torchvision   = { version = "0.20.1", source = "pytorch-cu124" }
+torchaudio    = { version = "2.5.1", source = "pytorch-cu124" }
+xformers      = { version = "0.0.29", source = "pytorch-cu124" }
+diffusers     = "0.33.0"
+ninja         = "*"
+torch-scatter = { version = "*", source = "pyg-cu124" }
+torch-sparse  = { version = "*", source = "pyg-cu124" }
+torch-cluster = { version = "*", source = "pyg-cu124" }
+torch-spline-conv = { version = "*", source = "pyg-cu124" }
+pytorch3d     = { url = "https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu121_pyt251/pytorch3d-0.7.8-cp310-cp310-linux_x86_64.whl" }
+flash-attn    = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.5cxx11abiFALSE-cp310-cp310-linux_x86_64.whl" }
+lightning     = "2.5.2"
+torchmetrics  = "1.6.3"
+trimesh       = "4.6.4"
+addict        = "2.4.0"
+scipy         = "1.15.2"
+h5py          = "3.13.0"
+tqdm          = "4.67.1"
+hydra-core    = "1.3.2"
+wandb         = "0.20.1"
+mitsuba       = "3.6.4"
+matplotlib    = "3.10.3"
+rich          = "14.0.0"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -33,12 +33,23 @@ git clone https://github.com/GradientSpaces/Rectified-Point-Flow.git
 cd Rectified-Point-Flow
 ```
 
-We provide an [`install_dep.sh`](install_dep.sh) script to install all dependencies that we used for development.
+We use a Python 3.10 environment for compatibility with the dependencies:
 
 ```bash
-conda create -n py310-rpf python=3.10
+conda create -n py310-rpf python=3.10 -y
 conda activate py310-rpf
-bash install_dep.sh
+```
+
+Then, use [`poetry`](https://python-poetry.org/) or [`uv`](https://docs.astral.sh/uv/) to install the dependencies:
+
+```bash
+poetry install  # or `uv sync`
+```
+
+Alternatively, we provide an [`install.sh`](install.sh) script to bootstrap the environment via pip only:
+
+```bash
+bash install.sh
 ```
 
 This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7.4`. We've tested it on NVIDIA RTX4090/A100/H100 GPUs with CUDA 12.4.
@@ -54,8 +65,8 @@ python sample.py data_root="./demo/data" log_dir="./demo/"
 ```
 This saves images of the input (unposed) parts and multiple generations for possible assemblies.
 
-**Rendering:**  We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high-quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer="pytorch3d"` argument. 
-To save the flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument.
+**Rendering:**  We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. 
+To save the flow trajectory as a GIF animation, use `visualizer.save_trajectory=true`.
 More rendering options are available in [config/visualizer](config/visualizer/default.yaml).
 
 **Custom Checkpoints:** If you've trained a new RPF model with [`train.py`](train.py) (see below), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 

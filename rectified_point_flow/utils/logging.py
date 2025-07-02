@@ -1,4 +1,3 @@
-import logging
 from collections import defaultdict
 from itertools import chain
 from typing import Dict, List
@@ -6,8 +5,6 @@ from typing import Dict, List
 import lightning as L
 import torch
 import torch.distributed as dist
-
-logger = logging.getLogger("Metrics")
 
 
 def log_metrics_on_step(

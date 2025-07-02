@@ -15,6 +15,7 @@ from rectified_point_flow.visualizer import VisualizationCallback
 
 logger = logging.getLogger("Sample")
 warnings.filterwarnings("ignore", module="lightning")  # ignore warning from lightning' connectors
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Optimize for performance
 torch.backends.cuda.matmul.allow_tf32 = True
