@@ -52,12 +52,12 @@ To sample from demo data using the trained RPF model, please run:
 ```bash
 python sample.py data_root="./demo/data" log_dir="./demo/"
 ```
-This saves the input (conditional) and generated point cloud renderings as PNGs.
+This saves images of the input (unposed) point cloud with multiple generated (assembled) point clouds.
 
-**Renderer:** We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high-quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by setting `visualizer.renderer="pytorch3d"` in the config. 
-See [config/visualizer](config/visualizer/default.yaml) for more rendering options.
+**Renderer:** By default, we use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high-quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer="pytorch3d"` argument. 
+Find more rendering options in [config/visualizer](config/visualizer/default.yaml).
 
-**Flow Animation:** To save the flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument. Note that this may be slow depending on the renderer.
+**Flow Animation:** To save the flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument. Note that this may be slow depending on the renderer. You can also set `visualizer.trajectory_gif_fps` to control the frame rate.
 
 **Custom Checkpoints:** If you've trained a new RPF model with [`train.py`](train.py) (see below), you can add the `ckpt_path` argument to use your own checkpoint instead. For example, 
 
