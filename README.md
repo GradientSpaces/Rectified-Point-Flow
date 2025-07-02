@@ -54,7 +54,7 @@ python sample.py data_root="./demo/data" log_dir="./demo/"
 ```
 This saves the condition and generated point cloud renderings as PNGs.
 
-**Renderer:** By default, we use [PyTorch3D's PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) for fast rendering. For higher quality ray-traced renderings (as shown above), we also support rendering with [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) by adding prefix `USE_MITSUBA=1` to commands.
+**Renderer:** By default, we use [PyTorch3D's PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) for fast rendering. For higher quality ray-traced renderings (as shown above), we also support rendering with [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) by setting `visualizer.renderer="mitsuba"` in the config file.
 
 **Flow Animation:** To save the point flow trajectory as a GIF animation, add `visualizer.save_trajectory=true` argument; note that this will be slow.
 

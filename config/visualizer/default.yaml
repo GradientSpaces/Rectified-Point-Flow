@@ -1,18 +1,35 @@
 _target_: rectified_point_flow.visualizer.VisualizationCallback
 
 save_dir: ${log_dir}
+
+# We support the following renderers:
+# - "mitsuba": Use Mitsuba for high quality ray-traced rendering.
+# - "pytorch3d": Use PyTorch3D's PointRasterizer for fast rendering.
+renderer: mitsuba
+
+# Point cloud settings
 center_points: false
 scale_to_original_size: false
 
+# Color settings
+# We support the following colormaps:
+# - "matplotlib:<name>": Use matplotlib colormap of the given name, e.g. "matplotlib:Set2"
+# - "hue:<luminance>:<saturation>": Use hue-based color ring with the given luminance and saturation.
+# - "shengyun": Use Shengyun's colormap defined in PyCG. We use this in the paper.
+# - "default": Predefined 10 colors.
 colormap: default
-image_size: 256
-point_radius: 0.015
-camera_dist: 4.0
-camera_elev: 30.0
-camera_azim: 150.0
-camera_fov: 35.0
+
+# Image settings
+image_size: 256           # Output resolution (square image)
+point_radius: 0.015       # Radius of sphere of each point
+
+# Camera parameters
+camera_dist: 4.0          # Distance from the camera to the point cloud center
+camera_elev: 30.0         # Elevation angle above the horizon
+camera_azim: 150.0        # Azimuth angle on the horizon plane
+camera_fov: 40.0          # Field of view
 
 # Trajectory GIF settings
-save_trajectory: true
-trajectory_gif_fps: 30
-trajectory_gif_pause_last_frame: 1.0
+save_trajectory: true     # Whether to save the trajectory as a GIF animation
+trajectory_gif_fps: 25    # Frames per second
+trajectory_gif_pause_last_frame: 1.0  # Pause for the last frame in seconds

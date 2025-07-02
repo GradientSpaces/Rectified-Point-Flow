@@ -332,13 +332,15 @@ def visualize_point_clouds_mitsuba(
 
 
 def visualize_point_clouds(
-    *args,
+    renderer: str = "pytorch3d",
     **kwargs,
 ) -> torch.Tensor:
-    if os.environ.get("USE_MITSUBA", "0") == "1":
+    if renderer == "mitsuba":
         if mitsuba_available:
-            return visualize_point_clouds_mitsuba(*args, **kwargs)
+            return visualize_point_clouds_mitsuba(**kwargs)
         else:
-            raise ImportError("Mitsuba not found, set USE_MITSUBA=0 to use PyTorch3D for rendering.")
+            raise ImportError("Mitsuba not found, set visualizer.renderer to 'pytorch3d' to use PyTorch3D for rendering.")
+    elif renderer == "pytorch3d":
+        return visualize_point_clouds_pytorch3d(**kwargs)
     else:
-        return visualize_point_clouds_pytorch3d(*args, **kwargs)
+        raise ValueError(f"Invalid renderer: {renderer}")

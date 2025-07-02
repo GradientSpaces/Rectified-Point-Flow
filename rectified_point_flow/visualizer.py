@@ -17,6 +17,7 @@ class VisualizationCallback(Callback):
     def __init__(
         self,
         save_dir: Optional[str] = None,
+        renderer: str = "mitsuba",
         scale_to_original_size: bool = False,
         center_points: bool = False,
         colormap: str = "Set2",
@@ -35,6 +36,7 @@ class VisualizationCallback(Callback):
 
         Args:
             save_dir (str): Directory to save images. If None, uses trainer.log_dir/visualizations.
+            renderer (str): Renderer to use, can be "mitsuba" or "pytorch3d". Default: "mitsuba".
             scale_to_original_size (bool): If True, scales the point clouds to the original size. 
                 Otherwise, keep the scaling, i.e. [-1, 1]. Default: False.
             center_points: If True, centers the point cloud around the origin. Default: False.
@@ -52,6 +54,7 @@ class VisualizationCallback(Callback):
         """
         super().__init__()
         self.save_dir = save_dir
+        self.renderer = renderer
         self.colormap = colormap
         self.scale_to_original_size = scale_to_original_size
         self.max_samples_per_batch = max_samples_per_batch
@@ -61,6 +64,7 @@ class VisualizationCallback(Callback):
 
         self.vis_dir = None
         self._vis_kwargs = {
+            "renderer": self.renderer,
             "center_points": center_points,
             "image_size": image_size,
             "point_radius": point_radius,
