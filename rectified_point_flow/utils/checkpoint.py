@@ -1,7 +1,10 @@
 import random
+import logging
 
 import numpy as np
 import torch
+
+logger = logging.getLogger("Checkpoint")
 
 # Checkpoint Loading
 
@@ -52,7 +55,7 @@ def load_checkpoint_for_module(
     
     # Load the state dict
     load_result = module.load_state_dict(state_dict, strict=strict)
-    print(f"Loaded checkpoint: {checkpoint_path}. Result: {load_result}")        
+    logger.info(f"Loaded checkpoint: {checkpoint_path}. {load_result}")        
     return load_result
 
 # RNG State Saving and Loading

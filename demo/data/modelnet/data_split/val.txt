@@ -1,0 +1,2 @@
+modelnet/bookshelf/9840/fracture_0
+modelnet/plant/11812/fracture_0

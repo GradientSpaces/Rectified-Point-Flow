@@ -27,7 +27,8 @@ class RectifiedPointFlow(L.LightningModule):
         encoder_ckpt: str = None,
         flow_model_ckpt: str = None,
         timestep_sampling: str = "u-shaped",
-        inference_sampling_steps: int = 40,
+        inference_sampling_steps: int = 20,
+        n_generations: int = 1,
         pred_proc_fn: Callable | None = None,
         sample_proc_fn: Callable | None = None,
     ):
@@ -38,6 +39,7 @@ class RectifiedPointFlow(L.LightningModule):
         self.lr_scheduler = lr_scheduler
         self.timestep_sampling = timestep_sampling
         self.inference_sampling_steps = inference_sampling_steps
+        self.n_generations = n_generations
         self.pred_proc_fn = pred_proc_fn
         self.sample_proc_fn = sample_proc_fn
 
@@ -48,7 +50,6 @@ class RectifiedPointFlow(L.LightningModule):
                 encoder_ckpt,
                 strict=False,
             )
-
         if flow_model_ckpt is not None:
             load_checkpoint_for_module(
                 self.flow_model,
@@ -219,20 +220,38 @@ class RectifiedPointFlow(L.LightningModule):
         return loss_dict["loss"]
 
     def test_step(self, data_dict: dict, batch_idx: int):
-        """Test step."""
+        """Test step with support for multiple generations."""
         latent = self._encode(data_dict)
-        trajectory = self.sample_rectified_flow(data_dict, latent, return_tarjectory=True)
-        pointclouds_pred = trajectory[-1]
-        eval_results = self.evaluator.run(data_dict, pointclouds_pred)
+        n_trajectories = []
+        n_eval_results = []
+        for _ in range(self.n_generations):
+            trajectory = self.sample_rectified_flow(data_dict, latent, return_tarjectory=True)
+            pointclouds_pred = trajectory[-1]
+            eval_results = self.evaluator.run(data_dict, pointclouds_pred)            
+            n_trajectories.append(trajectory)
+            n_eval_results.append(eval_results)
+        
+        # Compute average metrics
+        avg_results = {}
+        for key in n_eval_results[0].keys():
+            avg_results[key] = sum(
+                result[key] for result in n_eval_results
+            ) / len(n_eval_results)
         self.meter.add_metrics(
-            dataset_names=data_dict['dataset_name'], **eval_results
+            dataset_names=data_dict['dataset_name'], **avg_results
         )
-        outputs = {
-            'pointclouds_pred': pointclouds_pred, 
-            'trajectory': trajectory,
-            **eval_results
-        }
-        return outputs
+        # Compute best-of-n metrics
+        if self.n_generations > 1:
+            best_results = {}
+            for key in n_eval_results[0].keys():
+                values = [result[key] for result in n_eval_results]
+                agg_fn = max if 'acc' in key else min
+                best_results[key + '_bon'] = agg_fn(values)
+            self.meter.add_metrics(
+                dataset_names=data_dict['dataset_name'], **best_results
+            )
+        
+        return {'n_trajectories': n_trajectories, **avg_results}
     
     def sample_rectified_flow(
         self, 
@@ -299,11 +318,6 @@ class RectifiedPointFlow(L.LightningModule):
         metrics = self.meter.compute_average()
         log_metrics_on_epoch(self, metrics, prefix="val")
         return metrics
-
-    def on_test_epoch_end(self):
-        metrics = self.meter.compute_average()
-        log_metrics_on_epoch(self, metrics, prefix="test")
-        return metrics
         
     def on_save_checkpoint(self, checkpoint):
         checkpoint["rng_state"] = get_rng_state()
@@ -336,6 +350,7 @@ if __name__ == "__main__":
     from .flow_model import PointCloudDiT
 
     lr_scheduler = partial(torch.optim.lr_scheduler.StepLR, step_size=100, gamma=0.1)
+
     feature_extractor = PointCloudEncoder(
         pc_feat_dim=64,
         encoder=PointTransformerV3Objcentric(),
@@ -356,4 +371,5 @@ if __name__ == "__main__":
         optimizer=torch.optim.AdamW,
         lr_scheduler=lr_scheduler,
     )
+
     print(rectified_point_flow)

@@ -1,6 +1,7 @@
 """Visualization utilities for point cloud assembly."""
 
 from pathlib import Path
+import logging
 from typing import Any, Optional
 
 import lightning as L
@@ -10,6 +11,8 @@ from lightning.pytorch.callbacks import Callback
 from .utils.render import visualize_point_clouds, img_tensor_to_pil, generate_part_colors
 from .utils.point_clouds import ppp_to_ids
 
+logger = logging.getLogger("Visualizer")
+
 
 class VisualizationCallback(Callback):
     """Lightning callback for visualizing point cloud assemblies during evaluation."""
@@ -17,6 +20,7 @@ class VisualizationCallback(Callback):
     def __init__(
         self,
         save_dir: Optional[str] = None,
+        renderer: str = "mitsuba",
         scale_to_original_size: bool = False,
         center_points: bool = False,
         colormap: str = "Set2",
@@ -35,6 +39,7 @@ class VisualizationCallback(Callback):
 
         Args:
             save_dir (str): Directory to save images. If None, uses trainer.log_dir/visualizations.
+            renderer (str): Renderer to use, can be "mitsuba" or "pytorch3d". Default: "mitsuba".
             scale_to_original_size (bool): If True, scales the point clouds to the original size. 
                 Otherwise, keep the scaling, i.e. [-1, 1]. Default: False.
             center_points: If True, centers the point cloud around the origin. Default: False.
@@ -52,6 +57,7 @@ class VisualizationCallback(Callback):
         """
         super().__init__()
         self.save_dir = save_dir
+        self.renderer = renderer
         self.colormap = colormap
         self.scale_to_original_size = scale_to_original_size
         self.max_samples_per_batch = max_samples_per_batch
@@ -61,6 +67,7 @@ class VisualizationCallback(Callback):
 
         self.vis_dir = None
         self._vis_kwargs = {
+            "renderer": self.renderer,
             "center_points": center_points,
             "image_size": image_size,
             "point_radius": point_radius,
@@ -77,12 +84,10 @@ class VisualizationCallback(Callback):
             else:
                 self.vis_dir = Path(self.save_dir) / "visualizations"
             self.vis_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Visualization saved to: {self.vis_dir}")
 
     def _save_sample_images(
         self,
-        input_points: torch.Tensor,
-        generated_points: torch.Tensor,
+        points: torch.Tensor,
         colors: torch.Tensor,
         sample_idx: int,
         sample_name: Optional[str] = None,
@@ -97,28 +102,18 @@ class VisualizationCallback(Callback):
             sample_name (str): Optional sample name for filename.
         """
         try:
-            input_image = visualize_point_clouds(
-                points=input_points,
+            image = visualize_point_clouds(
+                points=points,
                 colors=colors,
                 **self._vis_kwargs
             )
-            generated_image = visualize_point_clouds(
-                points=generated_points,
-                colors=colors,
-                **self._vis_kwargs
-            )
-            input_pil = img_tensor_to_pil(input_image)
-            generated_pil = img_tensor_to_pil(generated_image)
-
-            base_name = f"{sample_idx:05d}"
+            image_pil = img_tensor_to_pil(image)
+            base_name = f"{sample_idx:04d}"
             if sample_name:
-                base_name += f"_{sample_name.replace('/', '-')}"
-
-            input_pil.save(self.vis_dir / f"{base_name}_condition.png")
-            generated_pil.save(self.vis_dir / f"{base_name}_generated.png")
-
+                base_name += f"-{sample_name.replace('/', '_')}"
+            image_pil.save(self.vis_dir / f"{base_name}.png")
         except Exception as e:
-            print(f"Error saving visualization for sample {sample_idx}: {e}")
+            logger.error(f"Error saving visualization for sample {sample_idx}: {e}")
 
     def _save_trajectory_gif(
         self,
@@ -168,9 +163,8 @@ class VisualizationCallback(Callback):
                 loop=0,  # Infinite loop
                 optimize=True
             )
-            
         except Exception as e:
-            print(f"Error saving trajectory GIF for sample {sample_idx}: {e}")
+            logger.error(f"Error saving trajectory GIF for sample {sample_idx}: {e}")
 
     def on_test_batch_end(
         self,
@@ -188,12 +182,16 @@ class VisualizationCallback(Callback):
         B, _ = points_per_part.shape
         part_ids = ppp_to_ids(points_per_part)                                # (bs, N)
         input_points = batch["pointclouds"].reshape(B, -1, 3)                 # (bs, N, 3)
-        pointclouds_pred = outputs['pointclouds_pred'].reshape(B, -1, 3)      # (bs, N, 3)
+        
+        # Multiple generations
+        trajectories_list = outputs['n_trajectories']                         # (K, num_steps, num_points, 3)
+        K = len(outputs['n_trajectories'])
+        pointclouds_pred_list = [traj[-1].reshape(B, -1, 3) for traj in trajectories_list]
 
         if self.scale_to_original_size:
             scale = batch["scale"][:, 0]                                      # (bs,)
             input_points = input_points * scale[:, None, None]                # (bs, N, 3)
-            pointclouds_pred = pointclouds_pred * scale[:, None, None]        # (bs, N, 3)
+            pointclouds_pred_list = [pred * scale[:, None, None] for pred in pointclouds_pred_list]
 
         for i in range(B):
             sample_idx = batch_idx * B + i
@@ -205,30 +203,37 @@ class VisualizationCallback(Callback):
             colors = generate_part_colors(
                 part_ids[i], colormap=self.colormap, part_order="random"
             )
-            
-            # save condition and generated point clouds
-            self._save_sample_images(
-                input_points=input_points[i],
-                generated_points=pointclouds_pred[i],
-                colors=colors,
-                sample_idx=sample_idx,
-                sample_name=sample_name,
-            )
-
-            if self.save_trajectory:
-                # save trajectory as GIF
-                trajectory = outputs['trajectory']
-                num_steps = trajectory.shape[0]
-                trajectory = trajectory.reshape(num_steps, B, -1, 3).permute(1, 0, 2, 3)  # (bs, num_steps, N, 3)
-
-                if self.scale_to_original_size:
-                    trajectory = trajectory * scale[:, None, None, None]        # (bs, num_steps, N, 3)
-                self._save_trajectory_gif(
-                    trajectory=trajectory[i],
+            for n in range(K):
+                # save condition point cloud
+                self._save_sample_images(
+                    points=input_points[i],
                     colors=colors,
                     sample_idx=sample_idx,
-                    sample_name=sample_name,
+                    sample_name=f"{sample_name}-condition-input",
                 )
+                # save generated point cloud
+                pointclouds_pred = pointclouds_pred_list[n]
+                self._save_sample_images(
+                    points=pointclouds_pred[i],
+                    colors=colors,
+                    sample_idx=sample_idx,
+                    sample_name=f"{sample_name}-generation-{n+1}",
+                )
+
+                if self.save_trajectory:
+                    # save trajectory as GIF
+                    trajectory = trajectories_list[n]
+                    num_steps = trajectory.shape[0]
+                    trajectory = trajectory.reshape(num_steps, B, -1, 3).permute(1, 0, 2, 3)  # (bs, num_steps, N, 3)
+                    if self.scale_to_original_size:
+                        trajectory = trajectory * scale[:, None, None, None]        # (bs, num_steps, N, 3)
+                    
+                    self._save_trajectory_gif(
+                        trajectory=trajectory[i],
+                        colors=colors,
+                        sample_idx=sample_idx,
+                        sample_name=f"{sample_name}-generation-{n+1}",
+                    )
 
             if self.max_samples_per_batch is not None and i >= self.max_samples_per_batch:
                 break

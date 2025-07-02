@@ -27,7 +27,6 @@ def setup(cfg: DictConfig):
 
     # Instantiate model and load checkpoint
     ckpt_path = cfg.ckpt_path
-    logger.info(f"Loading model from checkpoint: {ckpt_path}")
     model = hydra.utils.instantiate(cfg.model)
     load_checkpoint_for_module(model, ckpt_path)
     model.eval()
@@ -61,14 +60,11 @@ def main(cfg: DictConfig):
         logger.error(f"Checkpoint not found at {ckpt_path}")
         logger.error("Please provide a valid checkpoint path in the config or via ckpt_path='...' argument")
         return
-    
-    logger.info(f"Starting sampling with checkpoint: {ckpt_path}")
-    
+        
     # Setup components
     model, datamodule, trainer = setup(cfg)
 
     # Run sampling
-    logger.info("Running test sampling...")
     trainer.test(
         model=model,
         datamodule=datamodule, 
