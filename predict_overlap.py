@@ -9,19 +9,28 @@ import hydra
 import lightning as L
 from omegaconf import DictConfig
 
-from rectified_point_flow.utils import load_checkpoint_for_module
+from rectified_point_flow.utils import load_checkpoint_for_module, download_rfp_checkpoint
 from rectified_point_flow.visualizer import OverlapVisualizationCallback
 
 logger = logging.getLogger("PredictOverlap")
 warnings.filterwarnings("ignore", module="lightning")
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+DEFAULT_CKPT_PATH_HF = "RPF_base_pretrain_ep599.ckpt"
+
 
 def setup(cfg: DictConfig):
     """Setup inference components."""
     
+    ckpt_path = cfg.get("ckpt_path", None)
+    if ckpt_path is None:
+        ckpt_path = download_rfp_checkpoint(DEFAULT_CKPT_PATH_HF, './weights')
+    elif not os.path.exists(ckpt_path):
+        logger.error(f"Checkpoint not found: {ckpt_path}")
+        logger.error("Please provide a valid checkpoint in the config or via ckpt_path='...' argument")
+        exit(1)
+
     # load model and checkpoint
-    ckpt_path = cfg.ckpt_path
     model = hydra.utils.instantiate(cfg.model)
     load_checkpoint_for_module(model, ckpt_path)
     model.eval()
@@ -51,13 +60,6 @@ def setup(cfg: DictConfig):
 def main(cfg: DictConfig):
     """Main function for overlap prediction and visualization."""
     
-    # check if checkpoint exists
-    ckpt_path = cfg.get("ckpt_path")
-    if not ckpt_path or not os.path.exists(ckpt_path):
-        logger.error(f"Checkpoint not found at {ckpt_path}")
-        logger.error("Please provide a valid checkpoint path in the config or via ckpt_path='...' argument")
-        return
-    
     # setup components
     model, datamodule, trainer = setup(cfg)
     
@@ -66,9 +68,8 @@ def main(cfg: DictConfig):
     
     # logging
     logger.info("Done!")
-    log_dir = cfg.get('log_dir')
-    vis_dir = Path(log_dir) / "visualizations"
-    logger.info(f"Overlap visualizations saved to: {vis_dir}")
+    vis_dir = Path(cfg.get('log_dir')) / "visualizations"
+    logger.info(f"Visualizations saved to: {vis_dir}")
 
 
 if __name__ == "__main__":
