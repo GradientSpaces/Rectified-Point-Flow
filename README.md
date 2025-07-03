@@ -126,6 +126,20 @@ python train.py --config-name "RPF_base_main" \
 
 ## 📚 More Details
 
+### Training Data
+
+The model is trained on a combination of following datasets. We will release the processed dataset files.
+
+| Dataset | Task | Part segmentation source | Parts per sample |
+|---|---|---|---|
+| [**IKEA-Manual**](https://yunongliu1.github.io/ikea-video-manual/) | Shape Assembly | Defined by IKEA manuals | [2, 19] |
+| [**PartNet**](https://partnet.cs.stanford.edu/) | Shape Assembly | Human-annotated parts | [2, 64] | 
+| [**BreakingBad-Everyday**](https://breaking-bad-dataset.github.io/) | Shape Assembly | Simulated fractures via [fracture-modes](https://github.com/sgsellan/fracture-modes#dataset) | [2, 49] |
+| [**Two-by-Two**](https://tea-lab.github.io/TwoByTwo/) | Shape Assembly | Annotated by human | 2 |
+| [**ModelNet-40**](https://github.com/GradientSpaces/Predator) | Pairwise Registration | Following [Predator](https://github.com/prs-eth/OverlapPredator) split | 2 |
+| [**TUD-L**](https://bop.felk.cvut.cz/datasets/) | Pairwise Registration | Real scans with partial observations | 2 |
+| [**Objverse**](https://objaverse.allenai.org/) | Overlap Prediction | Segmented by [SAMPart3D](https://github.com/GradientSpaces/SAMPart3D) | [3, 12] |
+
 ### Custom Datasets
 
 RPF supports two data formats: PLY files and HDF5, but we strongly recommend using HDF5 for faster I/O.
