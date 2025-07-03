@@ -128,17 +128,17 @@ python train.py --config-name "RPF_base_main" \
 
 ### Training Data
 
-The model is trained on a combination of following datasets. We will release the processed dataset files.
+The model is trained on a combination of following datasets. Please be aware that datasets have different licenses. We will release the dataset processing scripts and processed files soon.
 
-| Dataset | Task | Part segmentation source | Parts per sample |
-|---|---|---|---|
-| [**IKEA-Manual**](https://yunongliu1.github.io/ikea-video-manual/) | Shape Assembly | Defined by IKEA manuals | [2, 19] |
-| [**PartNet**](https://partnet.cs.stanford.edu/) | Shape Assembly | Human-annotated parts | [2, 64] | 
-| [**BreakingBad-Everyday**](https://breaking-bad-dataset.github.io/) | Shape Assembly | Simulated fractures via [fracture-modes](https://github.com/sgsellan/fracture-modes#dataset) | [2, 49] |
-| [**Two-by-Two**](https://tea-lab.github.io/TwoByTwo/) | Shape Assembly | Annotated by human | 2 |
-| [**ModelNet-40**](https://github.com/GradientSpaces/Predator) | Pairwise Registration | Following [Predator](https://github.com/prs-eth/OverlapPredator) split | 2 |
-| [**TUD-L**](https://bop.felk.cvut.cz/datasets/) | Pairwise Registration | Real scans with partial observations | 2 |
-| [**Objverse**](https://objaverse.allenai.org/) | Overlap Prediction | Segmented by [SAMPart3D](https://github.com/GradientSpaces/SAMPart3D) | [3, 12] |
+| Dataset | Task | Part Segmentation Source | Parts per Object | License | 
+|:---|:---|:---|:---|:---|
+| [**IKEA-Manual**](https://yunongliu1.github.io/ikea-video-manual/) | Shape Assembly | Defined by IKEA manuals | [2, 19] | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| [**PartNet**](https://partnet.cs.stanford.edu/) | Shape Assembly | Human-annotated parts | [2, 64] | [MIT License](https://mit-license.org/) |
+| [**BreakingBad-Everyday**](https://breaking-bad-dataset.github.io/) | Shape Assembly | Simulated fractures via [fracture-modes](https://github.com/sgsellan/fracture-modes#dataset) | [2, 49] | [MIT License](https://mit-license.org/) |
+| [**Two-by-Two**](https://tea-lab.github.io/TwoByTwo/) | Shape Assembly | Annotated by human | 2 | [MIT License](https://mit-license.org/) | 
+| [**ModelNet-40**](https://modelnet.cs.princeton.edu/#) | Pairwise Registration | Following [Predator](https://github.com/prs-eth/OverlapPredator) split | 2 | [Custom](https://modelnet.cs.princeton.edu/#) |
+| [**TUD-L**](https://bop.felk.cvut.cz/datasets/) | Pairwise Registration | Real scans with partial observations | 2 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| [**Objverse**](https://objaverse.allenai.org/) | Overlap Prediction | Segmented by [SAMPart3D](https://github.com/GradientSpaces/SAMPart3D) | [3, 12] | [ODC-BY 1.0](https://opendatacommons.org/licenses/by/1-0/) |
 
 ### Custom Datasets
 
