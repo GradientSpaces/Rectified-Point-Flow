@@ -128,7 +128,7 @@ python train.py --config-name "RPF_base_main" \
 
 ### Training Data
 
-The model is trained on a combination of following datasets. Please be aware that datasets have different licenses. We will release the dataset processing scripts and processed files soon.
+The model is trained on a combination of following datasets. Please be aware that datasets have different licenses. We will release the dataset processing scripts and processed data files soon.
 
 <details>
 <summary>Click to expand the list of training datasets.</summary>
@@ -141,7 +141,7 @@ The model is trained on a combination of following datasets. Please be aware tha
 | [Two-by-Two](https://tea-lab.github.io/TwoByTwo/) | Shape assembly | Annotated by human | 2 | [MIT License](https://mit-license.org/) | 
 | [ModelNet-40](https://modelnet.cs.princeton.edu/#) | Pairwise registration | Following [Predator](https://github.com/prs-eth/OverlapPredator) split | 2 | [Custom](https://modelnet.cs.princeton.edu/#) |
 | [TUD-L](https://bop.felk.cvut.cz/datasets/) | Pairwise registration | Real scans with partial observations | 2 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
-| [Objverse](https://objaverse.allenai.org/) | Overlap prediction | Segmented by [SAMPart3D](https://github.com/GradientSpaces/SAMPart3D) | [3, 12] | [ODC-BY 1.0](https://opendatacommons.org/licenses/by/1-0/) |
+| [Objverse](https://objaverse.allenai.org/) | Overlap prediction | Segmented by [PartField](https://github.com/nv-tlabs/PartField) | [3, 12] | [ODC-BY 1.0](https://opendatacommons.org/licenses/by/1-0/) |
 </details>
 
 
