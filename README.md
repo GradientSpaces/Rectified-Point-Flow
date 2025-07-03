@@ -75,7 +75,7 @@ More rendering options are available in [config/visualizer](config/visualizer/de
 python predict_overlap.py data_root=./demo/data
 ```
 
-**Checkpoints:** The scripts will automatically download trained checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/tree/main):
+**Checkpoints:** The scripts will automatically download trained checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/):
 - `RPF_base_full_*.ckpt`: Full model checkpoint for assembly generation.
 - `RPF_base_pretrain_*.ckpt`: Only the encoder checkpoint for overlap prediction.
 
