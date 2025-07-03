@@ -63,6 +63,7 @@ def load_checkpoint_for_module(
 
 def download_rfp_checkpoint(filename: str, local_dir: str) -> str:
     """Download RFP checkpoint from Hugging Face."""
+    os.makedirs(local_dir, exist_ok=True)  # Ensure the directory exists
     repo_id = "gradient-spaces/Rectified-Point-Flow"
     ckpt_path = os.path.join(local_dir, filename)
     if not os.path.exists(ckpt_path):
