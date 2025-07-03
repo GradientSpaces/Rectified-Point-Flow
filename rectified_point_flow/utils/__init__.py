@@ -1,4 +1,4 @@
-from .checkpoint import load_checkpoint_for_module
+from .checkpoint import load_checkpoint_for_module, download_rfp_checkpoint
 from .training import setup_loggers, setup_wandb_resume
 from .logging import log_metrics_on_step, log_metrics_on_epoch, MetricsMeter
 from .point_clouds import (
@@ -21,4 +21,5 @@ __all__ = [
     "broadcast_part_to_points",
     "broadcast_batch_to_part",
     "flatten_valid_parts",
+    "download_rfp_checkpoint",
 ]

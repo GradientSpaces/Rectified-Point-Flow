@@ -1,8 +1,10 @@
-import random
 import logging
+import random
+import os
 
 import numpy as np
 import torch
+from huggingface_hub import hf_hub_download
 
 logger = logging.getLogger("Utils")
 
@@ -57,6 +59,16 @@ def load_checkpoint_for_module(
     load_result = module.load_state_dict(state_dict, strict=strict)
     logger.info(f"Loaded checkpoint: {checkpoint_path}. {load_result}")        
     return load_result
+
+
+def download_rfp_checkpoint(filename: str, local_dir: str) -> str:
+    """Download RFP checkpoint from Hugging Face."""
+    os.makedirs(local_dir, exist_ok=True)  # Ensure the directory exists
+    repo_id = "gradient-spaces/Rectified-Point-Flow"
+    ckpt_path = os.path.join(local_dir, filename)
+    if not os.path.exists(ckpt_path):
+        hf_hub_download(repo_id=repo_id, filename=filename, local_dir=local_dir)
+    return ckpt_path
 
 # RNG State Saving and Loading
 

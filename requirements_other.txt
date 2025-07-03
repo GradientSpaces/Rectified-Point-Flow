@@ -8,3 +8,4 @@ wandb==0.20.1
 mitsuba==3.6.4
 matplotlib==3.10.3
 rich==14.0.0
+huggingface-hub==0.26.2
