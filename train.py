@@ -43,8 +43,9 @@ def main(cfg: DictConfig):
     
     # Setup random seed
     if is_fresh_run:
-        L.seed_everything(cfg.get("seed"), workers=True)
-        logger.info(f"Fresh run with random seed {cfg.get('seed')}")
+        seed = cfg.get("seed", 0)
+        L.seed_everything(seed, workers=True, verbose=False)
+        logger.info(f"Fresh run with random seed {seed}")
     else:
         logger.info("Resume training from checkpoint, no random seed set.")
         setup_wandb_resume(cfg)
