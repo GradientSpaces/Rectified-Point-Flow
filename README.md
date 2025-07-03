@@ -130,6 +130,9 @@ python train.py --config-name "RPF_base_main" \
 
 The model is trained on a combination of following datasets. Please be aware that datasets have different licenses. We will release the dataset processing scripts and processed files soon.
 
+<details>
+<summary>Click to expand the list of training datasets.</summary>
+
 | Dataset | Task | Part segmentation | #Parts | License | 
 |:---|:---|:---|:---|:---|
 | [IKEA-Manual](https://yunongliu1.github.io/ikea-video-manual/) | Shape Assembly | Defined by IKEA manuals | [2, 19] | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
@@ -139,6 +142,8 @@ The model is trained on a combination of following datasets. Please be aware tha
 | [ModelNet-40](https://modelnet.cs.princeton.edu/#) | Pairwise Registration | Following [Predator](https://github.com/prs-eth/OverlapPredator) split | 2 | [Custom](https://modelnet.cs.princeton.edu/#) |
 | [TUD-L](https://bop.felk.cvut.cz/datasets/) | Pairwise Registration | Real scans with partial observations | 2 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
 | [Objverse](https://objaverse.allenai.org/) | Overlap Prediction | Segmented by [SAMPart3D](https://github.com/GradientSpaces/SAMPart3D) | [3, 12] | [ODC-BY 1.0](https://opendatacommons.org/licenses/by/1-0/) |
+</details>
+
 
 ### Custom Datasets
 
