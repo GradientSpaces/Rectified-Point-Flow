@@ -16,7 +16,7 @@ logger = logging.getLogger("PredictOverlap")
 warnings.filterwarnings("ignore", module="lightning")
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-DEFAULT_CKPT_PATH_HF = "RPF_base_pretrain_ep599.ckpt"
+DEFAULT_CKPT_PATH_HF = "RPF_base_pretrain_ep600.ckpt"
 
 
 def setup(cfg: DictConfig):
