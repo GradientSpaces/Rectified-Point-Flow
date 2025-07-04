@@ -9,6 +9,9 @@ defaults:
   - _self_
   - override hydra/hydra_logging: disabled
 
+# Seed
+seed: 42
+
 # Disable hydra logging
 hydra:
   verbose: false

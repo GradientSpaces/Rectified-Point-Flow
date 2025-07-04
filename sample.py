@@ -35,6 +35,12 @@ def setup(cfg: DictConfig):
         logger.error(f"Checkpoint not found: {ckpt_path}")
         logger.error("Please provide a valid checkpoint in the config or via ckpt_path='...' argument")
         exit(1)
+
+    # Seed if set
+    seed = cfg.get("seed", None)
+    if seed is not None:
+        L.seed_everything(seed, workers=True, verbose=False)
+        logger.info(f"Seed set to {seed} for sampling")
     
     # Instantiate model and load checkpoint
     model = hydra.utils.instantiate(cfg.model)

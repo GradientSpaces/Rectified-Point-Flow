@@ -128,7 +128,7 @@ python train.py --config-name "RPF_base_main" \
 
 ### Training Data
 
-The model is trained on a combination of following datasets. Please be aware that datasets have different licenses. We will release the dataset processing scripts and processed data files soon.
+The model is trained on a combination of following datasets. Please be aware that datasets have different licenses. We will release the processed data files soon.
 
 <details>
 <summary>Click to expand the list of training datasets.</summary>
