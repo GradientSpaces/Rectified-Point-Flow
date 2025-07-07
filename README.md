@@ -67,7 +67,7 @@ This saves images of the input (unposed) parts and multiple generations for poss
 We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. 
 To save the flow trajectory as a GIF animation, use `visualizer.save_trajectory=true`.
 
-More rendering options are available in [config/visualizer](config/visualizer/default.yaml).
+More rendering options are available in [config/visualizer](config/visualizer/flow.yaml).
 
 **Overlap Prediction:** To visualize the overlap probabilities predicted by the encoder, please run:
 
