@@ -163,9 +163,10 @@ Override any configuration parameter from the command line:
 ```bash
 # Adjust learning rate and batch size
 python train.py --config-name "RPF_base_main" \
-    model.optimizer.lr=5e-5 \
+    model.optimizer.lr=1e-4 \
     data.batch_size=32 \
-    trainer.max_epochs=1500
+    trainer.max_epochs=2000 \
+    trainer.accumulate_grad_batches=2 \
 
 # Use different dataset combination
 python train.py --config-name "RPF_base_main" \
