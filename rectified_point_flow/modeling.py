@@ -328,6 +328,11 @@ class RectifiedPointFlow(L.LightningModule):
         metrics = self.meter.compute_average()
         log_metrics_on_epoch(self, metrics, prefix="val")
         return metrics
+    
+    def on_test_epoch_end(self):
+        metrics = self.meter.compute_average()
+        log_metrics_on_epoch(self, metrics, prefix="test")
+        return metrics
         
     def on_save_checkpoint(self, checkpoint):
         checkpoint["rng_state"] = get_rng_state()

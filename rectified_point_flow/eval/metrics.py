@@ -5,6 +5,8 @@ from torch.nn.utils.rnn import pad_sequence
 from pytorch3d.loss.chamfer import chamfer_distance
 from scipy.optimize import linear_sum_assignment
 
+from .procrustes import fit_part_transformations
+
 
 def compute_object_cd(
     pointclouds_gt: torch.Tensor,
@@ -33,8 +35,9 @@ def compute_part_acc(
     pointclouds_pred: torch.Tensor,
     points_per_part: torch.Tensor,
     threshold: float = 0.01,
+    return_matched_part_ids: bool = True,
 ) -> torch.Tensor:
-    """Compute part accuracy over the Hungarian matching between GT and predicted part order.
+    """Compute part accuracy over the Hungarian matching of the part order between GT and predicted point clouds.
     The Hungarian matching is necessary due to the interchangeability of parts.
 
     Args:
@@ -42,13 +45,17 @@ def compute_part_acc(
         pointclouds_pred (B, N, 3): Sampled point clouds.
         points_per_part (B, P): Number of points in each part.
         threshold (float): Chamfer distance threshold.
+        return_matched_part_ids (bool): Whether to return the matched part ids.
 
     Returns:
         Tensor of shape (B,) with part accuracy per batch.
+        Tensor of shape (B, P): For each batch, the i-th part is matched to the j-th part if matched_part_ids[b, i] == j.
+
     """
     device = pointclouds_gt.device
-    B, _ = points_per_part.shape
+    B, P = points_per_part.shape
     part_acc = torch.zeros(B, device=device)
+    matched_part_ids = torch.zeros(B, P, device=device, dtype=torch.long)
 
     # Compute part offsets
     seg_offsets = points_per_part.cumsum(dim=1) - points_per_part  # (B, P)
@@ -97,4 +104,71 @@ def compute_part_acc(
         matched = (cd_mat[row_ind, col_ind] < threshold).sum().item()
         part_acc[b] = matched / n_parts
 
+        # Store matched part ids
+        for i, j in zip(row_ind, col_ind):
+            matched_part_ids[b, i] = j
+
+    if return_matched_part_ids:
+        return part_acc, matched_part_ids
+    
     return part_acc
+
+def compute_transform_errors(
+    pointclouds: torch.Tensor,
+    pointclouds_pred: torch.Tensor,
+    points_per_part: torch.Tensor,
+    gt_rotations: torch.Tensor,
+    gt_translations: torch.Tensor,
+    anchor_part: torch.Tensor,
+    matched_part_ids: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Compute transform errors between GT and predicted point clouds.
+    
+    Args:
+        pointclouds (B, N, 3): Condition point clouds.
+        pointclouds_pred (B, N, 3): Sampled point clouds.
+        points_per_part (B, P): Number of points in each part.
+        gt_rotations (B, P, 3, 3): Ground truth rotation matrices.
+        gt_translations (B, P, 3): Ground truth translation vectors.
+        anchor_part (B, P): Whether the part is an anchor part.
+        matched_part_ids (B, P): Matched part ids per batch. If None, use the original part order.
+
+    Returns:
+        Tensor of shape (B,) with transform errors per batch. 
+    """
+    device = pointclouds.device
+    B, P = points_per_part.shape
+
+    # Fit per-part transformations
+    rot_hats, trans_hats = fit_part_transformations(pointclouds, pointclouds_pred, points_per_part)
+
+    # Re-order parts
+    if matched_part_ids is not None:
+        batch_idx = torch.arange(B, device=device)[:, None]
+        rot_hats = rot_hats[batch_idx, matched_part_ids]
+        trans_hats = trans_hats[batch_idx, matched_part_ids]
+
+    # Compute transform errors  
+    rot_errors = torch.zeros(B, device=device)
+    trans_errors = torch.zeros(B, device=device)
+
+    for b in range(B):
+        for p in range(P):
+            if anchor_part[b, p] or points_per_part[b, p] == 0:
+                continue
+
+            # Rotation error by Rodrigues' formula (in degrees)
+            rot_error = torch.acos(
+                torch.clamp(0.5 * (torch.trace(gt_rotations[b, p].t() @ rot_hats[b, p]) - 1), -1, 1)
+            )
+            rot_errors[b] += torch.rad2deg(rot_error)
+
+            # Translation error (in meters)
+            trans_errors[b] += torch.norm(gt_translations[b, p] - trans_hats[b, p])
+
+        # Average over valid parts
+        n_valid = torch.sum(points_per_part[b] > 0)
+        rot_errors[b] /= n_valid
+        trans_errors[b] /= n_valid
+
+    return rot_errors, trans_errors

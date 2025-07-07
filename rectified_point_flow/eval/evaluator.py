@@ -5,7 +5,7 @@ from typing import Any, Dict
 import torch
 import lightning as L
 
-from .metrics import compute_object_cd, compute_part_acc
+from .metrics import compute_object_cd, compute_part_acc, compute_transform_errors
 
 
 class Evaluator:
@@ -33,20 +33,35 @@ class Evaluator:
                 object_cd (torch.Tensor): Object Chamfer distance, shape (B,).
                 part_acc (torch.Tensor): Part accuracy, shape (B,).
         """
-        gt = data["pointclouds_gt"]  # (B, N, 3)
-        scale = data["scale"][:, 0]  # (B,)
-        B, N = gt.shape[:2]
-        pred = pointclouds_pred.view(B, N, 3).detach()
+        pts = data["pointclouds"]                       # (B, N, 3)
+        pts_gt = data["pointclouds_gt"]                 # (B, N, 3)
+        gt_rotations = data["rotations"]                # (B, P, 3, 3)
+        gt_translations = data["translations"]          # (B, P, 3)
+        points_per_part = data["points_per_part"]       # (B, P)
+        anchor_part = data["anchor_part"]               # (B, P)
+        scale = data["scale"][:, 0]                     # (B,)
+
+        B, N = pts_gt.shape[:2]
+        pts_pred = pointclouds_pred.view(B, N, 3).detach()  # (B, N, 3)
         
-        # Rescale both GT and predictions to original scale
-        pred = pred * scale.view(B, 1, 1)
-        gt = gt * scale.view(B, 1, 1)
+        # Rescale to original scale (in meters)
+        pts = pts * scale.view(B, 1, 1)
+        pts_gt = pts_gt * scale.view(B, 1, 1)
+        pts_pred = pts_pred * scale.view(B, 1, 1)
 
-        # Compute metrics via helper functions
-        object_cd = compute_object_cd(gt, pred)                           # (B,)
-        part_acc = compute_part_acc(gt, pred, data["points_per_part"])    # (B,)
+        # Compute metrics
+        object_cd = compute_object_cd(pts_gt, pts_pred)
+        part_acc, matched_parts = compute_part_acc(pts_gt, pts_pred, points_per_part)
+        rot_errors, trans_errors = compute_transform_errors(
+            pts, pts_pred, points_per_part, gt_rotations, gt_translations, anchor_part, matched_parts
+        )
 
-        return {"object_cd": object_cd, "part_acc": part_acc}
+        return {
+            "object_cd": object_cd,         # (B,)
+            "part_acc": part_acc,           # (B,)
+            "rot_errors": rot_errors,       # (B,)
+            "trans_errors": trans_errors,   # (B,)
+        }
 
     def _save_single_result(
         self,

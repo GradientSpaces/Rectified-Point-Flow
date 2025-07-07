@@ -265,24 +265,28 @@ class PointCloudDataset(Dataset):
         def _proc_part(i):
             """Process one part: center, rotate, and shuffle."""
             st, ed = offsets[i], offsets[i+1]
-            # center the point cloud
+            
+            # Center the point cloud
             part, trans = center_pcd(pts_gt[st:ed])
-            # random rotate the point cloud
-            part, norms, quant = rotate_pcd(part, normals_gt[st:ed])
-            # random shuffle point order
+            
+            # Random rotate the point cloud
+            part, norms, rot = rotate_pcd(part, normals_gt[st:ed])
+            
+            # Random shuffle point order
             _order = np.random.permutation(len(part))
             pts[st: ed] = part[_order]
             normals[st: ed] = norms[_order]
             pts_gt[st:ed] = pts_gt[st:ed][_order]
             normals_gt[st:ed] = normals_gt[st:ed][_order]
-            return quant, trans
+            
+            return rot, trans
 
         results = list(self.pool.map(_proc_part, range(n_parts)))
-        quats, trans = zip(*results)
+        rots, trans = zip(*results)
 
         # Padding to max_parts
         pts_per_part = pad_data(counts, self.max_parts)
-        quats = pad_data(np.stack(quats), self.max_parts)
+        rots = pad_data(np.stack(rots), self.max_parts)
         trans = pad_data(np.stack(trans), self.max_parts)
         scale = pad_data(np.array([scale] * n_parts), self.max_parts)
 
@@ -315,7 +319,7 @@ class PointCloudDataset(Dataset):
         results["pointclouds_gt"] = pts_gt.astype(np.float32)
         results["pointclouds_normals"] = normals.astype(np.float32)
         results["pointclouds_normals_gt"] = normals_gt.astype(np.float32)
-        results["quaternions"] = quats.astype(np.float32)
+        results["rotations"] = rots.astype(np.float32)
         results["translations"] = trans.astype(np.float32)
         results["points_per_part"] = pts_per_part.astype(np.int64)
         results["scale"] = scale.astype(np.float32)
