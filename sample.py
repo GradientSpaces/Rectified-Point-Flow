@@ -36,21 +36,16 @@ def setup(cfg: DictConfig):
         logger.error("Please provide a valid checkpoint in the config or via ckpt_path='...' argument")
         exit(1)
 
-    # Seed if set
     seed = cfg.get("seed", None)
     if seed is not None:
         L.seed_everything(seed, workers=True, verbose=False)
         logger.info(f"Seed set to {seed} for sampling")
-    
-    # Instantiate model and load checkpoint
+
+    datamodule: L.LightningDataModule = hydra.utils.instantiate(cfg.data)
     model = hydra.utils.instantiate(cfg.model)
     load_checkpoint_for_module(model, ckpt_path)
     model.eval()
 
-    # Instantiate data module
-    datamodule: L.LightningDataModule = hydra.utils.instantiate(cfg.data)
-    
-    # Setup visualization callback
     vis_config = cfg.get("visualizer", {})
     callbacks = []
     if vis_config:
@@ -70,17 +65,12 @@ def setup(cfg: DictConfig):
 def main(cfg: DictConfig):
     """Entry point for evaluating the model on validation set."""
 
-    # Setup components
     model, datamodule, trainer = setup(cfg)
-
-    # Run sampling
     trainer.test(
         model=model,
         datamodule=datamodule, 
         verbose=True
     )
-    
-    # logging
     logger.info("Done!")
     vis_dir = Path(cfg.get('log_dir')) / "visualizations"
     logger.info(f"Visualizations saved to: {vis_dir}")

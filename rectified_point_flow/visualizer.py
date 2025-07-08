@@ -156,10 +156,10 @@ class FlowVisualizationCallback(VisualizationCallback):
             sample_name: Optional sample name for filename.
         """
         try:
-            base_name = f"{sample_idx:05d}"
+            base_name = f"{sample_idx:04d}"
             if sample_name:
                 base_name += f"_{sample_name.replace('/', '-')}"
-            gif_path = self.vis_dir / f"{base_name}_trajectory.gif"
+            gif_path = self.vis_dir / f"{base_name}-trajectory.gif"
 
             # Render trajectory steps
             rendered_images = visualize_point_clouds(
@@ -208,8 +208,8 @@ class FlowVisualizationCallback(VisualizationCallback):
         input_points = batch["pointclouds"].reshape(B, -1, 3)                 # (bs, N, 3)
         
         # Multiple generations
-        trajectories_list = outputs['n_trajectories']                         # (K, num_steps, num_points, 3)
-        K = len(outputs['n_trajectories'])
+        trajectories_list = outputs['trajectories']                           # (K, num_steps, num_points, 3)
+        K = len(trajectories_list)
         pointclouds_pred_list = [traj[-1].reshape(B, -1, 3) for traj in trajectories_list]
 
         if self.scale_to_original_size:
@@ -228,14 +228,12 @@ class FlowVisualizationCallback(VisualizationCallback):
                 part_ids[i], colormap=self.colormap, part_order="random"
             )
             for n in range(K):
-                # save condition point cloud
                 self._save_sample_images(
                     points=input_points[i],
                     colors=colors,
                     sample_idx=sample_idx,
                     sample_name=f"{sample_name}-condition-input",
                 )
-                # save generated point cloud
                 pointclouds_pred = pointclouds_pred_list[n]
                 self._save_sample_images(
                     points=pointclouds_pred[i],
@@ -245,7 +243,6 @@ class FlowVisualizationCallback(VisualizationCallback):
                 )
 
                 if self.save_trajectory:
-                    # save trajectory as GIF
                     trajectory = trajectories_list[n]
                     num_steps = trajectory.shape[0]
                     trajectory = trajectory.reshape(num_steps, B, -1, 3).permute(1, 0, 2, 3)  # (bs, num_steps, N, 3)

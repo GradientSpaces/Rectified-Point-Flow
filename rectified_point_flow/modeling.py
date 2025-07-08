@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .eval.evaluator import Evaluator
+from .procrustes import fit_transformations
 from .utils.checkpoint import get_rng_state, load_checkpoint_for_module, set_rng_state
 from .utils.logging import MetricsMeter, log_metrics_on_step, log_metrics_on_epoch
 from .utils.point_clouds import broadcast_batch_to_part, flatten_valid_parts
@@ -114,7 +115,7 @@ class RectifiedPointFlow(L.LightningModule):
     def _encode(self, data_dict: dict):
         """Extract features from input data using FP16."""
         with torch.inference_mode():
-            with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=True):
+            with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=True):
                 out_dict = self.feature_extractor(data_dict)
         points = out_dict["point"]
         points["batch"] = points["batch_level1"].clone()
@@ -233,12 +234,21 @@ class RectifiedPointFlow(L.LightningModule):
         """Test step with support for multiple generations."""
         latent = self._encode(data_dict)
         n_trajectories = []
+        n_rotations_pred = []
+        n_translations_pred = []
         n_eval_results = []
+        B, _, _ = data_dict["pointclouds"].shape
+
         for _ in range(self.n_generations):
             trajectory = self.sample_rectified_flow(data_dict, latent, return_tarjectory=True)
-            pointclouds_pred = trajectory[-1]
-            eval_results = self.evaluator.run(data_dict, pointclouds_pred)            
+            pointclouds_pred = trajectory[-1].view(B, -1, 3).detach()
+            rotations_pred, translations_pred = fit_transformations(
+                data_dict["pointclouds"], pointclouds_pred, data_dict["points_per_part"]
+            )
+            eval_results = self.evaluator.run(data_dict, pointclouds_pred, rotations_pred, translations_pred)
             n_trajectories.append(trajectory)
+            n_rotations_pred.append(rotations_pred)
+            n_translations_pred.append(translations_pred)
             n_eval_results.append(eval_results)
         
         # Compute average metrics
@@ -250,18 +260,23 @@ class RectifiedPointFlow(L.LightningModule):
         self.meter.add_metrics(
             dataset_names=data_dict['dataset_name'], **avg_results
         )
-        # Compute best-of-n metrics
+
+        # Compute best of N (BoN) metrics
         if self.n_generations > 1:
             best_results = {}
             for key in n_eval_results[0].keys():
                 values = [result[key] for result in n_eval_results]
                 agg_fn = max if 'acc' in key else min
-                best_results[key + '_bon'] = agg_fn(values)
+                best_results[key + '-BoN'] = agg_fn(values)
             self.meter.add_metrics(
                 dataset_names=data_dict['dataset_name'], **best_results
             )
         
-        return {'n_trajectories': n_trajectories, **avg_results}
+        return {
+            'trajectories': n_trajectories,
+            'rotations_pred': n_rotations_pred,
+            'translations_pred': n_translations_pred,
+        }
     
     def sample_rectified_flow(
         self, 
