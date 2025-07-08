@@ -67,7 +67,7 @@ This saves images of the input (unposed) parts and multiple generations for poss
 We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. 
 To save the flow trajectory as a GIF animation, use `visualizer.save_trajectory=true`.
 
-More rendering options are available in [config/visualizer](config/visualizer/default.yaml).
+More rendering options are available in [config/visualizer](config/visualizer/flow.yaml).
 
 **Overlap Prediction:** To visualize the overlap probabilities predicted by the encoder, please run:
 
@@ -75,7 +75,7 @@ More rendering options are available in [config/visualizer](config/visualizer/de
 python predict_overlap.py data_root=./demo/data
 ```
 
-**Checkpoints:** The scripts will automatically download trained checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/tree/main):
+**Checkpoints:** The scripts will automatically download trained checkpoints from our [HuggingFace repo](https://huggingface.co/gradient-spaces/Rectified-Point-Flow/):
 - `RPF_base_full_*.ckpt`: Full model checkpoint for assembly generation.
 - `RPF_base_pretrain_*.ckpt`: Only the encoder checkpoint for overlap prediction.
 
@@ -163,9 +163,10 @@ Override any configuration parameter from the command line:
 ```bash
 # Adjust learning rate and batch size
 python train.py --config-name "RPF_base_main" \
-    model.optimizer.lr=5e-5 \
+    model.optimizer.lr=1e-4 \
     data.batch_size=32 \
-    trainer.max_epochs=1500
+    trainer.max_epochs=2000 \
+    trainer.accumulate_grad_batches=2 \
 
 # Use different dataset combination
 python train.py --config-name "RPF_base_main" \
