@@ -62,7 +62,11 @@ def main(cfg: DictConfig):
     """Main function for overlap prediction and visualization."""
     
     model, datamodule, trainer = setup(cfg)
-    eval_results = trainer.test(model=model, datamodule=datamodule, verbose=False)
+    eval_results = trainer.test(
+        model=model, 
+        datamodule=datamodule, 
+        verbose=False,
+    )
     print_eval_table(eval_results, datamodule.dataset_names)
     vis_dir = Path(cfg.get('log_dir')) / "visualizations"
     logger.info(f"Visualizations saved to: {vis_dir}/")

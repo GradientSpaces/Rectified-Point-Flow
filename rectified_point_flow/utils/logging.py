@@ -74,9 +74,9 @@ def print_eval_table(
 
     # Split into two sections for Avg and BoN metrics
     avg_metrics = sorted(m for m in metrics if m.lower().startswith("avg/"))
-    bon_metrics = sorted(m for m in metrics if m.lower().startswith("bon/"))
+    bon_metrics = sorted(m for m in metrics if m.lower().startswith("best_of_n/"))
     table = Table()
-    table.add_column("Metrics", style="bold magenta", justify="left")
+    table.add_column("Metrics", style="bold magenta", justify="left", no_wrap=True)
     for idx in sorted(per_idx):
         col_name = dataset_names[idx]
         table.add_column(col_name, style="cyan")
