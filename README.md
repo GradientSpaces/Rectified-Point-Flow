@@ -14,8 +14,8 @@
 **_TL;DR:_** *Assemble unposed parts into complete objects by learning a point-wise flow model.* 
 
 
-## News
-- [July 8, 2025] Released training codes.
+## 🔔 News
+- [July 9, 2025] Released training codes.
 - [July 1, 2025] Released model checkpoints and inference codes. 
 
 ## Overview
