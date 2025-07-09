@@ -54,12 +54,9 @@ class Evaluator:
         }
     
     @staticmethod
-    def _recall_at_thresholds(metrics: torch.Tensor, thresholds: list[float]) -> torch.Tensor:
+    def _recall_at_thresholds(metrics: torch.Tensor, thresholds: list[float]) -> list[torch.Tensor]:
         """Compute metrics of shape (B,) at thresholds."""
-        return [
-            (metrics <= threshold).float().mean(dim=0)
-            for threshold in thresholds
-        ]
+        return [(metrics <= threshold).float() for threshold in thresholds]
 
     def _save_single_result(
         self,
@@ -114,9 +111,13 @@ class Evaluator:
         Returns:
             A dictionary with:
                 object_chamfer_dist (B,): Object Chamfer distance in meters.
-                part_accuracy (B,): Part accuracy in percentage (%).
+                part_accuracy (B,): Part accuracy.
                 rotation_error (B,): Rotation errors in degrees.
                 translation_error (B,): Translation errors in meters.
+                recall_at_5deg (B,): Recall at 5 degrees.
+                recall_at_10deg (B,): Recall at 10 degrees.
+                recall_at_1cm (B,): Recall at 1 cm.
+                recall_at_5cm (B,): Recall at 5 cm.
         """
         metrics = self._compute_metrics(data, pointclouds_pred, rotations_pred, translations_pred)
         if save_results:
