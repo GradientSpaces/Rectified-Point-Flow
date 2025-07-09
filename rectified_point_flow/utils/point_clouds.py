@@ -17,6 +17,10 @@ def split_parts(pointclouds: torch.Tensor, points_per_part: torch.Tensor) -> lis
     counts_per_batch = points_per_part.tolist()
     parts: list[list[torch.Tensor]] = []
     for b, counts in enumerate(counts_per_batch):
+        assert sum(counts) == pointclouds[b].size(0), (
+            f"Mismatch detected: sum(counts)={sum(counts)} does not equal "
+            f"pointclouds[b].size(0)={pointclouds[b].size(0)} for batch {b}."
+        )
         splits = torch.split(pointclouds[b], counts, dim=0)
         parts.append([s for s in splits if s.size(0) > 0])
     return parts
