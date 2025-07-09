@@ -72,14 +72,14 @@ def print_eval_table(
             if m:
                 metrics.add(m.group(1))
 
-    # Split into two sections
-    avg_metrics = sorted(m for m in metrics if m.startswith("Avg/"))
-    bon_metrics = sorted(m for m in metrics if m.startswith("BoN/"))
+    # Split into two sections for Avg and BoN metrics
+    avg_metrics = sorted(m for m in metrics if m.lower().startswith("avg/"))
+    bon_metrics = sorted(m for m in metrics if m.lower().startswith("bon/"))
     table = Table()
-    table.add_column("Metrics", style="bold")
+    table.add_column("Metrics", style="bold magenta", justify="left")
     for idx in sorted(per_idx):
         col_name = dataset_names[idx]
-        table.add_column(col_name)
+        table.add_column(col_name, style="cyan")
 
     fmt = f"{{:.{digits}f}}"
     for metric in avg_metrics:

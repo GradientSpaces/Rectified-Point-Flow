@@ -69,15 +69,15 @@ class PointCloudEncoder(pl.LightningModule):
 
         for start in range(0, N, step_size):
             end = min(N, start + step_size)
-            sub_points = pointclouds[:, start:end, :]  # (B, M, 3)
-            sub_part_ids = part_ids[:, start:end].unsqueeze(-1)  # (B, M, 1)
+            sub_points = pointclouds[:, start:end, :]               # (B, M, 3)
+            sub_part_ids = part_ids[:, start:end].unsqueeze(-1)     # (B, M, 1)
             
             # Pairwise distances
             distances = torch.cdist(sub_points, pointclouds, p=2)
             
             # Mask same-part points
-            full_part_ids = part_ids.unsqueeze(1)  # (B, 1, N)
-            different_parts = sub_part_ids != full_part_ids  # (B, M, N)
+            full_part_ids = part_ids.unsqueeze(1)                   # (B, 1, N)
+            different_parts = sub_part_ids != full_part_ids         # (B, M, N)
             distances[~different_parts] = float('inf')
             
             # Check for overlap points
@@ -88,9 +88,9 @@ class PointCloudEncoder(pl.LightningModule):
 
     def _extract_point_features(self, batch: Dict[str, torch.Tensor]) -> tuple:
         """Extract point features using the encoder."""
-        pointclouds = batch["pointclouds"]  # (B, N, 3)
-        normals = batch["pointclouds_normals"]  # (B, N, 3)
-        points_per_part = batch["points_per_part"]  # (B, P)
+        pointclouds = batch["pointclouds"]                          # (B, N, 3)
+        normals = batch["pointclouds_normals"]                      # (B, N, 3)
+        points_per_part = batch["points_per_part"]                  # (B, P)
         B, N, C = pointclouds.shape
         n_valid_partsarts = points_per_part != 0
         
@@ -104,8 +104,8 @@ class PointCloudEncoder(pl.LightningModule):
             super_point, point = self.encoder({
                 "coord": part_coords,
                 "offset": points_offset,
-                "offset_level1": points_offset,
-                "offset_level0": object_offset,
+                "offset_level1": points_offset,                     # Offset to split parts
+                "offset_level0": object_offset,                     # Offset to split objects
                 "feat": torch.cat([part_coords, part_normals], dim=-1),
                 "grid_size": torch.tensor(self.grid_size).to(part_coords.device),
             })
@@ -122,8 +122,6 @@ class PointCloudEncoder(pl.LightningModule):
         # Overlap prediction
         overlap_logits = self.overlap_head(point_features)
         overlap_prob = torch.sigmoid(overlap_logits)
-
-        # Prepare output dictionary
         output = {
             "overlap_logits": overlap_logits,
             "overlap_prob": overlap_prob,
@@ -146,7 +144,6 @@ class PointCloudEncoder(pl.LightningModule):
             reduction="mean",
         )
         
-        # Compute metrics
         pred_binary = predictions["overlap_prob"] > 0.5
         target = predictions["overlap_mask"]
         metrics = {
@@ -180,7 +177,7 @@ class PointCloudEncoder(pl.LightningModule):
             print(f"Training step error: {e}")
             return None
 
-    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Optional[torch.Tensor]:
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0) -> Optional[torch.Tensor]:
         """Validation step."""
         try:
             predictions = self(batch)
@@ -197,10 +194,14 @@ class PointCloudEncoder(pl.LightningModule):
             print(f"Validation step error: {e}")
             return None
 
-    def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, torch.Tensor]:
+    def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0) -> Dict[str, torch.Tensor]:
         """Test step."""
         predictions = self.forward(batch)
         loss, metrics = self.loss(predictions, batch)
+        self.log_dict(
+            {f"avg/{k}": v for k, v in metrics.items()}, 
+            prog_bar=False,
+        )
         return {"loss": loss, **metrics, **predictions}
 
     def configure_optimizers(self):

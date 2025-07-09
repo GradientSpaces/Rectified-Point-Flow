@@ -9,7 +9,7 @@ import hydra
 import lightning as L
 from omegaconf import DictConfig
 
-from rectified_point_flow.utils import load_checkpoint_for_module, download_rfp_checkpoint
+from rectified_point_flow.utils import load_checkpoint_for_module, download_rfp_checkpoint, print_eval_table
 from rectified_point_flow.visualizer import OverlapVisualizationCallback
 
 logger = logging.getLogger("PredictOverlap")
@@ -62,8 +62,8 @@ def main(cfg: DictConfig):
     """Main function for overlap prediction and visualization."""
     
     model, datamodule, trainer = setup(cfg)
-    trainer.test(model=model, datamodule=datamodule, verbose=False)
-    logger.info("Done!")
+    eval_results = trainer.test(model=model, datamodule=datamodule, verbose=False)
+    print_eval_table(eval_results, datamodule.dataset_names)
     vis_dir = Path(cfg.get('log_dir')) / "visualizations"
     logger.info(f"Visualizations saved to: {vis_dir}/")
 

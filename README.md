@@ -14,6 +14,10 @@
 **_TL;DR:_** *Assemble unposed parts into complete objects by learning a point-wise flow model.* 
 
 
+## News
+- [July 8, 2025] Released training codes.
+- [July 1, 2025] Released model checkpoints and inference codes. 
+
 ## Overview
 
 We introduce **Rectified Point Flow** (RPF), a unified parameterization that formulates pairwise point cloud registration and multi-part shape assembly as a single conditional generative problem. Given unposed point clouds, our method learns a continuous point-wise velocity field that transports noisy points toward their target positions, from which part poses are recovered. In contrast to prior work that regresses part-wise poses with ad-hoc symmetry handling, our method intrinsically learns assembly symmetries without symmetry labels.
@@ -271,7 +275,7 @@ Define parameters for Lightning's [Trainer](https://lightning.ai/docs/pytorch/la
 
 ## ☑️ Todo List
 - [x] Release model & demo code
-- [ ] Release full training code & checkpoints
+- [x] Release full training code & checkpoints
 - [ ] Release processed dataset files
 - [ ] Support running without flash-attn
 - [ ] Online demo

@@ -253,7 +253,7 @@ class RectifiedPointFlow(L.LightningModule):
         # Compute average metrics
         avg_results = {}
         for key in n_eval_results[0].keys():
-            avg_results[f'Avg/{key}'] = sum(result[key] for result in n_eval_results) / len(n_eval_results)
+            avg_results[f'avg/{key}'] = sum(result[key] for result in n_eval_results) / len(n_eval_results)
         self.log_dict(avg_results, prog_bar=False)
 
         # Compute best of N (BoN) metrics
