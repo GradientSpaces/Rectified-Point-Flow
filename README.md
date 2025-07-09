@@ -64,7 +64,7 @@ This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7
 python sample.py data_root=./demo/data
 ```
 This saves images of the input (unposed) parts and multiple generations for possible assemblies.
-We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. 
+We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. To disable rendering, use `visualizer.renderer=none`.
 To save the flow trajectory as a GIF animation, use `visualizer.save_trajectory=true`.
 
 More rendering options are available in [config/visualizer](config/visualizer/flow.yaml).

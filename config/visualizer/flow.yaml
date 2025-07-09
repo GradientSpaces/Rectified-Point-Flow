@@ -5,6 +5,7 @@ save_dir: ${log_dir}
 # We support the following renderers:
 # - "mitsuba": Use Mitsuba for high quality ray-traced rendering.
 # - "pytorch3d": Use PyTorch3D's PointRasterizer for fast rendering.
+# - "none": Do not save any visualizations.
 renderer: mitsuba
 
 # Point cloud settings
