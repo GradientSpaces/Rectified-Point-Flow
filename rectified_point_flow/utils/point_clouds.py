@@ -1,80 +1,50 @@
 """Utility functions for point cloud reshaping."""
 
 import torch
-from typing import Optional
 
 
-def ppp_to_ids(points_per_part: torch.Tensor) -> torch.Tensor:
-    """Convert points_per_part tensor to part ID tensor.
-    
-    Args:
-        points_per_part: Number of points per part of shape (B, P).
-        
-    Returns:
-        Part IDs of shape (B, max_points), where each point is assigned 
-        the ID of its corresponding part.
-    """
-    batch_size, num_parts = points_per_part.shape
-    max_points = points_per_part.sum(dim=1).max().item()
-    part_ids = torch.zeros(
-        batch_size, max_points, device=points_per_part.device, dtype=torch.long
-    )
-
-    for batch_idx in range(batch_size):
-        point_idx = 0
-        for part_idx in range(num_parts):
-            num_points = points_per_part[batch_idx, part_idx].item()
-            if num_points > 0:
-                part_ids[batch_idx, point_idx:point_idx + num_points] = part_idx
-                point_idx += num_points
-    
-    return part_ids
-
-
-def ids_to_ppp(part_ids: torch.Tensor, num_parts: Optional[int] = None) -> torch.Tensor:
-    """Convert part ID tensor to points_per_part tensor.
-    
-    Args:
-        part_ids: Part IDs of shape (B, N) where each point has a part ID.
-        num_parts: Maximum number of parts. If None, inferred from part_ids.
-        
-    Returns:
-        Tensor of shape (B, P), where P is num_parts.
-    """
-    batch_size = part_ids.shape[0]
-    
-    if num_parts is None:
-        num_parts = part_ids.max().item() + 1
-    
-    points_per_part = torch.zeros(
-        batch_size, num_parts, device=part_ids.device, dtype=torch.long
-    )
-    for batch_idx in range(batch_size):
-        # Count occurrences of each part ID
-        valid_ids = part_ids[batch_idx][part_ids[batch_idx] >= 0]
-        if len(valid_ids) > 0:
-            part_counts = torch.bincount(valid_ids, minlength=num_parts)
-            points_per_part[batch_idx, :len(part_counts)] = part_counts
-    
-    return points_per_part
-
-
-def split_parts(x: torch.Tensor, points_per_part: torch.Tensor) -> list[list[torch.Tensor]]:
+def split_parts(pointclouds: torch.Tensor, points_per_part: torch.Tensor) -> list[list[torch.Tensor]]:
     """Split a packed tensor into per-part point clouds.
 
     Args:
-        x: Tensor of shape (B, N, 3).
+        pointclouds: Tensor of shape (B, N, 3).
         points_per_part: Tensor of shape (B, P) giving the number of points in each part.
 
     Returns: 
-        A list of length B, where parts[b] is itself a list of P or fewer tensors of shape (N_i, 3).
+        parts: A list of length B, where parts[b] is itself a list of P (or fewer)
+            tensors of shape (N_i, 3), where N_i is the number of points in the i-th part.
     """
     counts_per_batch = points_per_part.tolist()
     parts: list[list[torch.Tensor]] = []
     for b, counts in enumerate(counts_per_batch):
-        splits = torch.split(x[b], counts, dim=0)
+        splits = torch.split(pointclouds[b], counts, dim=0)
         parts.append([s for s in splits if s.size(0) > 0])
     return parts
+
+
+def ppp_to_ids(points_per_part: torch.Tensor) -> torch.Tensor:
+    """Convert a points_per_part tensor into a part-IDs tensor.
+
+    Args:
+        points_per_part: Tensor of shape (B, P).
+
+    Returns:
+        Long tensor of shape (B, max_points), where for each batch b, the first
+        N_b = points_per_part[b].sum() entries are the part-indices (0...P-1)
+        repeated according to points_per_part[b], and any remaining positions
+        (out to max_points) are zero.
+    """
+    B, P = points_per_part.shape
+    device = points_per_part.device
+    max_points = int(points_per_part.sum(dim=1).max().item())
+    result = torch.zeros(B, max_points, dtype=torch.long, device=device)
+    part_ids = torch.arange(P, device=device)
+
+    for b in range(B):
+        # Repeat each part index by its count in this batch
+        id_repeated = torch.repeat_interleave(part_ids, points_per_part[b])  # (N_b,)
+        result[b, : id_repeated.size(0)] = id_repeated
+    return result
 
 
 def broadcast_part_to_points(x: torch.Tensor, points_per_part: torch.Tensor) -> torch.Tensor:
@@ -103,7 +73,7 @@ def broadcast_batch_to_part(x: torch.Tensor, points_per_part: torch.Tensor) -> t
         Tensor of shape (valid_P, ...).
     """
     B, P = points_per_part.shape
-    part_valids = points_per_part != 0                          # (B, P)
+    part_valids = points_per_part != 0                         # (B, P)
     expanded = x.unsqueeze(1).expand(B, P, *x.shape[1:])
     return expanded[part_valids]
 
