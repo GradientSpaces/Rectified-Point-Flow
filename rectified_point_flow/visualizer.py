@@ -80,14 +80,14 @@ class VisualizationCallback(Callback):
         self,
         points: torch.Tensor,
         colors: torch.Tensor,
-        sample_name: Optional[str] = None,
+        sample_name: str,
     ) -> None:
         """Save visualization images for a single sample.
         
         Args:
             points (torch.Tensor): Point cloud of shape (N, 3).
             colors (torch.Tensor): Colors of shape (N, 3).
-            sample_name (str): Optional sample name for filename.
+            sample_name (str): sample name for filename.
         """
         try:
             image = visualize_point_clouds(
