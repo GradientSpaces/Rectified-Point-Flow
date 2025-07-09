@@ -112,6 +112,7 @@ class VisualizationCallback(Callback):
         outputs: Any,
         batch: dict[str, torch.Tensor],
         batch_idx: int,
+        dataloader_idx: int = 0,
     ) -> None:
         """Override this method in subclasses for specific visualization logic."""
         raise NotImplementedError("Subclasses must implement on_test_batch_end")
@@ -164,10 +165,9 @@ class FlowVisualizationCallback(VisualizationCallback):
             # Render trajectory steps
             rendered_images = visualize_point_clouds(
                 points=trajectory,                                          # (num_steps, N, 3)
-                colors=colors,                                              # (N, 3) - same for all steps
+                colors=colors,                                              # (N, 3)
                 **self._vis_kwargs,
-            )   # (num_steps, H, W, 3)
-            
+            )                                                               # (num_steps, H, W, 3)
             frames = []
             num_steps = trajectory.shape[0]
             for step in range(num_steps):
@@ -247,8 +247,7 @@ class FlowVisualizationCallback(VisualizationCallback):
                     num_steps = trajectory.shape[0]
                     trajectory = trajectory.reshape(num_steps, B, -1, 3).permute(1, 0, 2, 3)  # (bs, num_steps, N, 3)
                     if self.scale_to_original_size:
-                        trajectory = trajectory * scale[:, None, None, None]        # (bs, num_steps, N, 3)
-                    
+                        trajectory = trajectory * scale[:, None, None, None]                  # (bs, num_steps, N, 3)
                     self._save_trajectory_gif(
                         trajectory=trajectory[i],
                         colors=colors,
@@ -278,13 +277,13 @@ class OverlapVisualizationCallback(VisualizationCallback):
 
         overlap_prob = outputs["overlap_prob"]                                # (total_points,)
         B, _ = batch["points_per_part"].shape                                 
-        input_points = batch["pointclouds_gt"].reshape(B, -1, 3)              # (bs, N, 3)
+        pts_gt = batch["pointclouds_gt"].reshape(B, -1, 3)                    # (bs, N, 3)
         overlap_prob = overlap_prob.reshape(B, -1)                            # (bs, N)
 
         # Scale to original size
         if self.scale_to_original_size:
             scale = batch["scale"][:, 0]                                      # (bs,)
-            input_points = input_points * scale[:, None, None]
+            pts_gt = pts_gt * scale[:, None, None]
 
         for i in range(B):
             sample_idx = batch_idx * B + i
@@ -294,7 +293,7 @@ class OverlapVisualizationCallback(VisualizationCallback):
             
             colors = probs_to_colors(overlap_prob[i], colormap=self.colormap)
             self._save_sample_images(
-                points=input_points[i],
+                points=pts_gt[i],
                 colors=colors,
                 sample_idx=sample_idx,
                 sample_name=f"{sample_name}-overlap-pred" if sample_name else f"overlap",
