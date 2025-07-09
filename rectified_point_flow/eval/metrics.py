@@ -166,7 +166,6 @@ def compute_transform_errors(
                 part_cond = parts_cond[b][p]
                 part_transformed = (part_cond @ rotations_pred[b, p].T + translations_pred[b, p]).unsqueeze(0)
                 error = iterative_closest_point(part_gt, part_transformed).RTs
-
                 rot_errors[b, p] = torch.rad2deg(
                     torch.acos(torch.clamp(0.5 * (torch.trace(error.R[0]) - 1), -1, 1))
                 )

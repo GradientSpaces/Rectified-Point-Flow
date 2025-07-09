@@ -176,7 +176,6 @@ class RectifiedPointFlow(L.LightningModule):
             scale=part_scale,
             anchor_part=anchor_part,
         )
-        
         output_dict = {
             "t": timesteps,
             "v_pred": v_pred,
