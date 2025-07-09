@@ -1,10 +1,13 @@
 from collections import defaultdict
 from itertools import chain
-from typing import Dict, List
+import re
+from typing import Dict, List, Any
 
 import lightning as L
 import torch
 import torch.distributed as dist
+from rich.console import Console
+from rich.table import Table
 
 
 def log_metrics_on_step(
@@ -39,6 +42,75 @@ def log_metrics_on_epoch(
             prog_bar=True,
             rank_zero_only=True,
         )
+
+def print_eval_table(
+    results: list[dict[str, float]],
+    dataset_names: list[str],
+    digits: int = 5,
+) -> None:
+    """
+    Pretty-print a list of evaluation-result dicts with Rich, split into Avg and BoN sections.
+
+    Args:
+        results: List of dicts, each with keys like
+                 "avg/rotation_error/dataloader_idx_0".
+        dataset_names: Mapping from dataloader_idx (int) to column name (str).
+        digits: Number of decimal places for floats.
+    """
+    # Group dicts by dataloader_idx
+    per_idx: Dict[int, Dict[str, Any]] = {}
+    idx_pattern = re.compile(r"dataloader_idx_(\d+)")
+    for d in results:
+        sample_key = next(iter(d))
+        idx = int(idx_pattern.search(sample_key).group(1))
+        per_idx[idx] = d
+    metric_pattern = re.compile(r"^(.+?/.+?)/dataloader_idx_\d+$")
+    metrics = set()
+    for d in results:
+        for k in d:
+            m = metric_pattern.match(k)
+            if m:
+                metrics.add(m.group(1))
+
+    # Split into two sections
+    avg_metrics = sorted(m for m in metrics if m.startswith("Avg/"))
+    bon_metrics = sorted(m for m in metrics if m.startswith("BoN/"))
+    table = Table()
+    table.add_column("Metrics", style="bold")
+    for idx in sorted(per_idx):
+        col_name = dataset_names[idx]
+        table.add_column(col_name)
+
+    fmt = f"{{:.{digits}f}}"
+    for metric in avg_metrics:
+        row = [metric]
+        for idx in sorted(per_idx):
+            key = f"{metric}/dataloader_idx_{idx}"
+            val = per_idx[idx].get(key)
+            if val is None:
+                row.append("-")
+            elif isinstance(val, float):
+                row.append(fmt.format(val))
+            else:
+                row.append(str(val))
+        table.add_row(*row)
+
+    table.add_section()
+
+    for metric in bon_metrics:
+        row = [metric]
+        for idx in sorted(per_idx):
+            key = f"{metric}/dataloader_idx_{idx}"
+            val = per_idx[idx].get(key)
+            if val is None:
+                row.append("-")
+            elif isinstance(val, float):
+                row.append(fmt.format(val))
+            else:
+                row.append(str(val))
+        table.add_row(*row)
+
+    Console().print(table)
 
 
 class MetricsMeter:

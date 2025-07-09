@@ -22,7 +22,8 @@ hydra:
 # Data
 data_root: ./demo/data
 data:
-  dataset_names: []  # [] means using all datasets in the data_root
+  # dataset_names: []  # [] means using all datasets in the data_root
+  dataset_names: ["ikea",  "twobytwo", "modelnet", "tudl"]
   batch_size: 1
   num_workers: 1
 

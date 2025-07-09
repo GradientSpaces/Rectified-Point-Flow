@@ -42,7 +42,7 @@ def center_pcd(pcd: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def rotate_pcd(pcd: np.ndarray, normals: np.ndarray = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Randomly rotate point cloud."""
+    """Randomly rotate point cloud and normals."""
     rot = Rotation.random()
     pcd = rot.apply(pcd)
     

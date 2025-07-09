@@ -10,7 +10,7 @@ import lightning as L
 import torch
 from omegaconf import DictConfig
 
-from rectified_point_flow.utils import load_checkpoint_for_module, download_rfp_checkpoint
+from rectified_point_flow.utils import load_checkpoint_for_module, download_rfp_checkpoint, print_eval_table
 from rectified_point_flow.visualizer import VisualizationCallback
 
 logger = logging.getLogger("Sample")
@@ -48,7 +48,7 @@ def setup(cfg: DictConfig):
 
     vis_config = cfg.get("visualizer", {})
     callbacks = []
-    if vis_config:
+    if vis_config and cfg["visualizer"]["renderer"] != "none":
         vis_callback: VisualizationCallback = hydra.utils.instantiate(vis_config)
         callbacks.append(vis_callback)
     
@@ -66,12 +66,12 @@ def main(cfg: DictConfig):
     """Entry point for evaluating the model on validation set."""
 
     model, datamodule, trainer = setup(cfg)
-    trainer.test(
+    eval_results = trainer.test(
         model=model,
         datamodule=datamodule, 
-        verbose=True
+        verbose=False,
     )
-    logger.info("Done!")
+    print_eval_table(eval_results, datamodule.dataset_names)
     vis_dir = Path(cfg.get('log_dir')) / "visualizations"
     logger.info(f"Visualizations saved to: {vis_dir}")
 

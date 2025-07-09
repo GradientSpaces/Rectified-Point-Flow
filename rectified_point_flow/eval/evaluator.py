@@ -39,12 +39,27 @@ class Evaluator:
             pts, pts_gt, rotations_pred, translations_pred, points_per_part, anchor_part, matched_parts, scale,
         )
 
+        rot_recalls = self._recall_at_thresholds(rot_errors, [5, 10])
+        trans_recalls = self._recall_at_thresholds(trans_errors, [0.01, 0.05])
+
         return {
-            "object_cd": object_cd,                     # (B,)
-            "part_acc": part_acc,                       # (B,)
-            "rot_errors": rot_errors,                   # (B,)
-            "trans_errors": trans_errors,               # (B,)
+            "part_accuracy": part_acc,
+            "object_chamfer": object_cd,
+            "rotation_error": rot_errors,
+            "translation_error": trans_errors,
+            "recall_at_5deg": rot_recalls[0],
+            "recall_at_10deg": rot_recalls[1],
+            "recall_at_1cm": trans_recalls[0],
+            "recall_at_5cm": trans_recalls[1],
         }
+    
+    @staticmethod
+    def _recall_at_thresholds(metrics: torch.Tensor, thresholds: list[float]) -> torch.Tensor:
+        """Compute metrics of shape (B,) at thresholds."""
+        return [
+            (metrics <= threshold).float().mean(dim=0)
+            for threshold in thresholds
+        ]
 
     def _save_single_result(
         self,
@@ -98,10 +113,10 @@ class Evaluator:
 
         Returns:
             A dictionary with:
-                object_cd (torch.Tensor): Object Chamfer distance, shape (B,).
-                part_acc (torch.Tensor): Part accuracy, shape (B,).
-                rot_errors (torch.Tensor): Rotation errors, shape (B,).
-                trans_errors (torch.Tensor): Translation errors, shape (B,).
+                object_chamfer_dist (B,): Object Chamfer distance in meters.
+                part_accuracy (B,): Part accuracy in percentage (%).
+                rotation_error (B,): Rotation errors in degrees.
+                translation_error (B,): Translation errors in meters.
         """
         metrics = self._compute_metrics(data, pointclouds_pred, rotations_pred, translations_pred)
         if save_results:

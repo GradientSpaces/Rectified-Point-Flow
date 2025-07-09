@@ -174,7 +174,7 @@ class FlowVisualizationCallback(VisualizationCallback):
                 frame_pil = img_tensor_to_pil(rendered_images[step])        # (H, W, 3)
                 frames.append(frame_pil)
             
-            # Frame duration and pause on last frame
+            # Frame duration and pause on last frame in ms
             duration = int(1000 / self.trajectory_gif_fps)
             durations = [duration] * len(frames)
             durations[-1] = int(duration + self.trajectory_gif_pause_last_frame * 1000)
@@ -197,6 +197,7 @@ class FlowVisualizationCallback(VisualizationCallback):
         outputs: Any,
         batch: dict[str, torch.Tensor],
         batch_idx: int,
+        dataloader_idx: int = 0,
     ) -> None:
         """Save flow visualizations at the end of each test batch."""
         if self.vis_dir is None:
@@ -207,7 +208,7 @@ class FlowVisualizationCallback(VisualizationCallback):
         part_ids = ppp_to_ids(points_per_part)                                # (bs, N)
         input_points = batch["pointclouds"].reshape(B, -1, 3)                 # (bs, N, 3)
         
-        # Multiple generations
+        # K generations
         trajectories_list = outputs['trajectories']                           # (K, num_steps, num_points, 3)
         K = len(trajectories_list)
         pointclouds_pred_list = [traj[-1].reshape(B, -1, 3) for traj in trajectories_list]
@@ -223,7 +224,6 @@ class FlowVisualizationCallback(VisualizationCallback):
             if "name" in batch and batch["name"][i] is not None:
                 sample_name = batch["name"][i]
 
-            # sample colors for each point
             colors = part_ids_to_colors(
                 part_ids[i], colormap=self.colormap, part_order="random"
             )
@@ -270,6 +270,7 @@ class OverlapVisualizationCallback(VisualizationCallback):
         outputs: Any,
         batch: dict[str, torch.Tensor],
         batch_idx: int,
+        dataloader_idx: int = 0,
     ) -> None:
         """Save overlap visualizations at the end of each test batch."""
         if self.vis_dir is None:

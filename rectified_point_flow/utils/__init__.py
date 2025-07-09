@@ -1,6 +1,6 @@
 from .checkpoint import load_checkpoint_for_module, download_rfp_checkpoint
 from .training import setup_loggers, setup_wandb_resume
-from .logging import log_metrics_on_step, log_metrics_on_epoch, MetricsMeter
+from .logging import log_metrics_on_step, log_metrics_on_epoch, MetricsMeter, print_eval_table
 from .point_clouds import (
     ppp_to_ids,
     ids_to_ppp,
@@ -22,4 +22,5 @@ __all__ = [
     "broadcast_batch_to_part",
     "flatten_valid_parts",
     "download_rfp_checkpoint",
+    "print_eval_table",
 ]

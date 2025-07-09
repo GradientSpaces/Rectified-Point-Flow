@@ -95,8 +95,8 @@ class PointCloudDataset(Dataset):
             - pointclouds_gt (N, 3) float32: Assembled point clouds (ground truth).
             - pointclouds_normals (N, 3) float32: Transformed point cloud normals.
             - pointclouds_normals_gt (N, 3) float32: Assembled point cloud normals (ground truth).
-            - rotations (P, 4) float32: Rigid transformations.
-            - translations (P, 3) float32: Rigid translations.
+            - rotations (P, 3, 3) float32: Rotation matrices.
+            - translations (P, 3) float32: Translation vectors.
             - points_per_part (P) int64: Number of points per part.
             - scale (P) float32: Scale of the point clouds.
             - anchor_part (P) bool: Whether the part is an anchor part.
@@ -278,10 +278,9 @@ class PointCloudDataset(Dataset):
         pts_gt = np.concatenate(pcs_gt)
         normals_gt = np.concatenate(pns_gt)
 
-        # Center point clouds
         pts_gt, _ = center_pcd(pts_gt)
 
-        # Make point clouds y-up
+        # Rotate point clouds to y-up
         pts_gt, normals_gt = self._make_y_up(pts_gt, normals_gt)
 
         # Scale point clouds to [-1, 1] and apply random scaling
@@ -290,7 +289,7 @@ class PointCloudDataset(Dataset):
             scale *= np.random.uniform(*self.random_scale_range)
         pts_gt /= scale
 
-        # Initial rotation (quat in wxyz format)
+        # Initial rotation to remove the pose prior (e.g., y-up) during training
         if self.split == "train":
             pts_gt, normals_gt, init_rot = rotate_pcd(pts_gt, normals_gt)
         else:
@@ -326,7 +325,7 @@ class PointCloudDataset(Dataset):
         trans = pad_data(np.stack(trans), self.max_parts)
         scale = pad_data(np.array([scale] * n_parts), self.max_parts)
 
-        # Anchor selection (primary part and extra parts)
+        # Use the largest part as the anchor part
         anchor = np.zeros(self.max_parts, bool)
         primary = np.argmax(counts)
         anchor[primary] = True
@@ -348,17 +347,9 @@ class PointCloudDataset(Dataset):
                 rots[extra_idx] = np.eye(3)
                 trans[extra_idx] = np.zeros(3)
 
-        # Return the transformed data
         results = {}
         for key in ["index", "name", "overlap_threshold"]:
             results[key] = data[key]
-
-        # sanity check for the transformations of all non-anchor parts
-        for i in range(n_parts):
-            if not anchor[i]:
-                st, ed = offsets[i], offsets[i+1]
-                recovered = (rots[i] @ pts[st:ed].T).T + trans[i]
-                assert np.allclose(recovered, pts_gt[st:ed], atol=1e-6), f"Part {i} [{st}:{ed}] is not transformed correctly"
 
         results["dataset_name"] = self.dataset_name
         results["num_parts"] = n_parts
@@ -393,3 +384,17 @@ if __name__ == "__main__":
             print(f"{key:<20} {val.shape}, {val.dtype}")
         else:
             print(f"{key:<20} {val}")
+
+    # Sanity check for transformations
+    n_parts = sample["num_parts"]
+    pts_gt = sample["pointclouds_gt"]
+    pts = sample["pointclouds"]
+    pts_per_part = sample["points_per_part"]
+    offsets = np.cumsum(pts_per_part)
+    for i in range(n_parts):
+        if not sample["anchor_part"][i]:
+            st, ed = offsets[i], offsets[i + 1]
+            rot, trans = sample["rotations"][i], sample["translations"][i]
+            pts_recovered = (pts[st:ed] @ rot.T) + trans
+            assert np.allclose(pts_recovered, pts_gt[st:ed], atol=1e-6)
+    print("Sanity check passed!")

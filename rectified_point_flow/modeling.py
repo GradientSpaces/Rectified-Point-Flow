@@ -210,14 +210,14 @@ class RectifiedPointFlow(L.LightningModule):
             "norm_v_t": v_t.norm(dim=-1).mean(),
         }
 
-    def training_step(self, data_dict: dict, batch_idx: int):
+    def training_step(self, data_dict: dict, batch_idx: int, dataloader_idx: int = 0):
         """Training step."""
         output_dict = self.forward(data_dict)
         loss_dict = self.loss(output_dict)
         log_metrics_on_step(self, loss_dict, prefix="train")
         return loss_dict["loss"]
 
-    def validation_step(self, data_dict: dict, batch_idx: int):
+    def validation_step(self, data_dict: dict, batch_idx: int, dataloader_idx: int = 0):
         """Validation step."""
         output_dict = self.forward(data_dict)
         loss_dict = self.loss(output_dict)
@@ -230,7 +230,7 @@ class RectifiedPointFlow(L.LightningModule):
         )
         return loss_dict["loss"]
 
-    def test_step(self, data_dict: dict, batch_idx: int):
+    def test_step(self, data_dict: dict, batch_idx: int, dataloader_idx: int = 0):
         """Test step with support for multiple generations."""
         latent = self._encode(data_dict)
         n_trajectories = []
@@ -254,23 +254,17 @@ class RectifiedPointFlow(L.LightningModule):
         # Compute average metrics
         avg_results = {}
         for key in n_eval_results[0].keys():
-            avg_results[key] = sum(
-                result[key] for result in n_eval_results
-            ) / len(n_eval_results)
-        self.meter.add_metrics(
-            dataset_names=data_dict['dataset_name'], **avg_results
-        )
+            avg_results[f'Avg/{key}'] = sum(result[key] for result in n_eval_results) / len(n_eval_results)
+        self.log_dict(avg_results, prog_bar=False)
 
         # Compute best of N (BoN) metrics
         if self.n_generations > 1:
             best_results = {}
             for key in n_eval_results[0].keys():
                 values = [result[key] for result in n_eval_results]
-                agg_fn = max if 'acc' in key else min
-                best_results[key + '-BoN'] = agg_fn(values)
-            self.meter.add_metrics(
-                dataset_names=data_dict['dataset_name'], **best_results
-            )
+                agg_fn = max if ('acc' in key or 'recall' in key) else min
+                best_results[f'BoN/{key}'] = agg_fn(values)
+            self.log_dict(best_results, prog_bar=False)
         
         return {
             'trajectories': n_trajectories,
