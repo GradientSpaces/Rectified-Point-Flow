@@ -68,8 +68,7 @@ def main(cfg: DictConfig):
         verbose=False,
     )
     print_eval_table(eval_results, datamodule.dataset_names)
-    vis_dir = Path(cfg.get('log_dir')) / "visualizations"
-    logger.info(f"Visualizations saved to: {vis_dir}/")
+    logger.info("Visualizations saved to:" + str(Path(cfg.get('log_dir')) / "visualizations"))
 
 
 if __name__ == "__main__":

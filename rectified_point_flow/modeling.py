@@ -33,6 +33,7 @@ class RectifiedPointFlow(L.LightningModule):
         n_generations: int = 1,
         pred_proc_fn: Callable | None = None,
         sample_proc_fn: Callable | None = None,
+        save_results: bool = False,
     ):
         super().__init__()
         self.feature_extractor = feature_extractor
@@ -45,6 +46,7 @@ class RectifiedPointFlow(L.LightningModule):
         self.n_generations = n_generations
         self.pred_proc_fn = pred_proc_fn
         self.sample_proc_fn = sample_proc_fn
+        self.save_results = save_results
 
         # Load checkpoints
         if encoder_ckpt is not None:
@@ -238,13 +240,20 @@ class RectifiedPointFlow(L.LightningModule):
         n_eval_results = []
         B, _, _ = data_dict["pointclouds"].shape
 
-        for _ in range(self.n_generations):
+        for gen_idx in range(self.n_generations):
             trajectory = self.sample_rectified_flow(data_dict, latent, return_tarjectory=True)
             pointclouds_pred = trajectory[-1].view(B, -1, 3).detach()
             rotations_pred, translations_pred = fit_transformations(
                 data_dict["pointclouds"], pointclouds_pred, data_dict["points_per_part"]
             )
-            eval_results = self.evaluator.run(data_dict, pointclouds_pred, rotations_pred, translations_pred)
+            eval_results = self.evaluator.run(
+                data_dict, 
+                pointclouds_pred, 
+                rotations_pred, 
+                translations_pred, 
+                save_results=self.save_results, 
+                generation_idx=gen_idx,
+            )
             n_trajectories.append(trajectory)
             n_rotations_pred.append(rotations_pred)
             n_translations_pred.append(translations_pred)
