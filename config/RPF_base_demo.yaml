@@ -22,7 +22,7 @@ hydra:
 # Data
 data_root: ./demo/data
 data:
-  dataset_names: []  # [] means using all datasets in the data_root
+  dataset_names: []      # [] means using all datasets in the data_root
   batch_size: 1
   num_workers: 1
 
@@ -30,10 +30,11 @@ data:
 log_dir: ./demo/
 
 # Checkpoint path
-ckpt_path: null      # when null, the checkpoint will be downloaded from Hugging Face
+ckpt_path: null          # when null, the checkpoint will be downloaded from Hugging Face
 
 # Model settings
 model:
   encoder_ckpt: null
   flow_model_ckpt: null
   n_generations: 3
+  save_results: true     # save evaluation results to log_dir/results

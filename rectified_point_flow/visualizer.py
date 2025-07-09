@@ -80,7 +80,6 @@ class VisualizationCallback(Callback):
         self,
         points: torch.Tensor,
         colors: torch.Tensor,
-        sample_idx: int,
         sample_name: Optional[str] = None,
     ) -> None:
         """Save visualization images for a single sample.
@@ -88,7 +87,6 @@ class VisualizationCallback(Callback):
         Args:
             points (torch.Tensor): Point cloud of shape (N, 3).
             colors (torch.Tensor): Colors of shape (N, 3).
-            sample_idx (int): Global sample index for naming.
             sample_name (str): Optional sample name for filename.
         """
         try:
@@ -98,12 +96,10 @@ class VisualizationCallback(Callback):
                 **self._vis_kwargs
             )
             image_pil = img_tensor_to_pil(image)
-            base_name = f"{sample_idx:04d}"
-            if sample_name:
-                base_name += f"-{sample_name.replace('/', '_')}"
-            image_pil.save(self.vis_dir / f"{base_name}.png")
+            sample_name = sample_name.replace('/', '_')
+            image_pil.save(self.vis_dir / f"{sample_name}.png")
         except Exception as e:
-            logger.error(f"Error saving visualization for sample {sample_idx}: {e}")
+            logger.error(f"Error saving visualization for sample {sample_name}: {e}")
 
     def on_test_batch_end(
         self,
@@ -145,22 +141,17 @@ class FlowVisualizationCallback(VisualizationCallback):
         self,
         trajectory: torch.Tensor,
         colors: torch.Tensor,
-        sample_idx: int,
-        sample_name: Optional[str] = None,
+        sample_name: str,
     ) -> None:
         """Save trajectory as GIF.
         
         Args:
             trajectory: Point clouds representing the trajectory steps of shape (num_steps, N, 3).
             colors: Colors of shape (N, 3). Same for all trajectory steps.
-            sample_idx: Global sample index for naming.
-            sample_name: Optional sample name for filename.
+            sample_name (str): sample name for filename.
         """
         try:
-            base_name = f"{sample_idx:04d}"
-            if sample_name:
-                base_name += f"_{sample_name.replace('/', '-')}"
-            gif_path = self.vis_dir / f"{base_name}-trajectory.gif"
+            gif_path = self.vis_dir / f"{sample_name}.gif"
 
             # Render trajectory steps
             rendered_images = visualize_point_clouds(
@@ -178,7 +169,7 @@ class FlowVisualizationCallback(VisualizationCallback):
             duration = int(1000 / self.trajectory_gif_fps)
             durations = [duration] * len(frames)
             durations[-1] = int(duration + self.trajectory_gif_pause_last_frame * 1000)
-            
+
             frames[0].save(
                 gif_path,
                 save_all=True,
@@ -188,7 +179,7 @@ class FlowVisualizationCallback(VisualizationCallback):
                 optimize=True
             )
         except Exception as e:
-            logger.error(f"Error saving trajectory GIF for sample {sample_idx}: {e}")
+            logger.error(f"Error saving trajectory GIF for sample {sample_name}: {e}")
 
     def on_test_batch_end(
         self,
@@ -206,7 +197,8 @@ class FlowVisualizationCallback(VisualizationCallback):
         points_per_part = batch["points_per_part"]                            # (bs, max_parts)
         B, _ = points_per_part.shape
         part_ids = ppp_to_ids(points_per_part)                                # (bs, N)
-        input_points = batch["pointclouds"].reshape(B, -1, 3)                 # (bs, N, 3)
+        pts = batch["pointclouds"].reshape(B, -1, 3)                 # (bs, N, 3)
+        pts_gt = batch["pointclouds_gt"].reshape(B, -1, 3)                    # (bs, N, 3)
         
         # K generations
         trajectories_list = outputs['trajectories']                           # (K, num_steps, num_points, 3)
@@ -215,31 +207,32 @@ class FlowVisualizationCallback(VisualizationCallback):
 
         if self.scale_to_original_size:
             scale = batch["scale"][:, 0]                                      # (bs,)
-            input_points = input_points * scale[:, None, None]                # (bs, N, 3)
+            pts = pts * scale[:, None, None]                # (bs, N, 3)
             pointclouds_pred_list = [pred * scale[:, None, None] for pred in pointclouds_pred_list]
 
         for i in range(B):
-            sample_idx = batch_idx * B + i
-            sample_name = None
-            if "name" in batch and batch["name"][i] is not None:
-                sample_name = batch["name"][i]
+            dataset_name = batch["dataset_name"][i]
+            sample_name = f"{dataset_name}_sample{int(batch['index'][i]):05d}"
 
             colors = part_ids_to_colors(
                 part_ids[i], colormap=self.colormap, part_order="random"
             )
+            self._save_sample_images(
+                points=pts[i],
+                colors=colors,
+                sample_name=f"{sample_name}_input",
+            )
+            self._save_sample_images(
+                points=pts_gt[i],
+                colors=colors,
+                sample_name=f"{sample_name}_gt",
+            )
             for n in range(K):
-                self._save_sample_images(
-                    points=input_points[i],
-                    colors=colors,
-                    sample_idx=sample_idx,
-                    sample_name=f"{sample_name}-condition-input",
-                )
                 pointclouds_pred = pointclouds_pred_list[n]
                 self._save_sample_images(
                     points=pointclouds_pred[i],
                     colors=colors,
-                    sample_idx=sample_idx,
-                    sample_name=f"{sample_name}-generation-{n+1}",
+                    sample_name=f"{sample_name}_generation{n+1:02d}",
                 )
 
                 if self.save_trajectory:
@@ -251,8 +244,7 @@ class FlowVisualizationCallback(VisualizationCallback):
                     self._save_trajectory_gif(
                         trajectory=trajectory[i],
                         colors=colors,
-                        sample_idx=sample_idx,
-                        sample_name=f"{sample_name}-generation-{n+1}",
+                        sample_name=f"{sample_name}_generation{n+1:02d}",
                     )
 
             if self.max_samples_per_batch is not None and i >= self.max_samples_per_batch:
@@ -286,17 +278,14 @@ class OverlapVisualizationCallback(VisualizationCallback):
             pts_gt = pts_gt * scale[:, None, None]
 
         for i in range(B):
-            sample_idx = batch_idx * B + i
-            sample_name = None
-            if "name" in batch and batch["name"][i] is not None:
-                sample_name = batch["name"][i]
+            dataset_name = batch["dataset_name"][i]
+            sample_name = f"{dataset_name}_sample{int(batch['index'][i]):05d}"
             
             colors = probs_to_colors(overlap_prob[i], colormap=self.colormap)
             self._save_sample_images(
                 points=pts_gt[i],
                 colors=colors,
-                sample_idx=sample_idx,
-                sample_name=f"{sample_name}-overlap-pred" if sample_name else f"overlap",
+                sample_name=f"{sample_name}_overlap",
             )
 
             if self.max_samples_per_batch is not None and i >= self.max_samples_per_batch:

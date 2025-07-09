@@ -63,6 +63,7 @@ class Evaluator:
         data: Dict[str, Any],
         metrics: Dict[str, torch.Tensor],
         idx: int,
+        generation_idx: int = 0,
     ) -> None:
         """Save a single evaluation result to JSON.
 
@@ -70,17 +71,21 @@ class Evaluator:
             data: Input data dictionary.
             metrics: Computed metrics dictionary.
             idx: Index of the sample in the batch.
+            generation_idx: Generation index for the result file name.
         """
+        dataset_name = data["dataset_name"][idx]
         entry = {
             "name": data["name"][idx],
-            "dataset": data["dataset_name"][idx],
+            "dataset": dataset_name,
             "num_parts": int(data["num_parts"][idx]),
+            "generation_idx": generation_idx,
+            "scale": float(data["scale"][idx, 0]),
         }
         entry.update({k: float(v[idx]) for k, v in metrics.items()})
 
         out_dir = Path(self.model.trainer.log_dir) / "results"
         out_dir.mkdir(parents=True, exist_ok=True)
-        filepath = out_dir / f"{int(data['index'][idx])}.json"
+        filepath = out_dir / f"{dataset_name}_sample{int(data['index'][idx]):05d}_generation{generation_idx:02d}.json"
         filepath.write_text(json.dumps(entry))
 
     def run(
@@ -90,6 +95,7 @@ class Evaluator:
         rotations_pred: torch.Tensor,
         translations_pred: torch.Tensor,
         save_results: bool = False,
+        generation_idx: int = 0,
     ) -> Dict[str, torch.Tensor]:
         """Run evaluation and optionally save results.
 
@@ -107,6 +113,7 @@ class Evaluator:
             rotations_pred (B, P, 3, 3): Estimated rotation matrices.
             translations_pred (B, P, 3): Estimated translation vectors.
             save_results (bool): If True, save each result to log_dir/results.
+            generation_idx (int): The index of the generation (mainly for best-of-n generations).
 
         Returns:
             A dictionary with:
@@ -121,6 +128,7 @@ class Evaluator:
         """
         metrics = self._compute_metrics(data, pointclouds_pred, rotations_pred, translations_pred)
         if save_results:
-            for i in range(data["points_per_part"].size(0)):
-                self._save_single_result(data, metrics, i)
+            B = data["points_per_part"].size(0)
+            for i in range(B):
+                self._save_single_result(data, metrics, i, generation_idx)
         return metrics
