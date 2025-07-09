@@ -51,7 +51,7 @@ def ids_to_ppp(part_ids: torch.Tensor, num_parts: Optional[int] = None) -> torch
     )
     for batch_idx in range(batch_size):
         # Count occurrences of each part ID
-        valid_ids = part_ids[batch_idx][part_ids[batch_idx] >= 0]  # Filter out padding (-1, etc.)
+        valid_ids = part_ids[batch_idx][part_ids[batch_idx] >= 0]
         if len(valid_ids) > 0:
             part_counts = torch.bincount(valid_ids, minlength=num_parts)
             points_per_part[batch_idx, :len(part_counts)] = part_counts
@@ -61,24 +61,19 @@ def ids_to_ppp(part_ids: torch.Tensor, num_parts: Optional[int] = None) -> torch
 
 def split_parts(x: torch.Tensor, points_per_part: torch.Tensor) -> list[list[torch.Tensor]]:
     """Split a packed tensor into per-part point clouds.
-    
+
     Args:
         x: Tensor of shape (B, N, 3).
-        points_per_part: Number of points per part of shape (B, P).
+        points_per_part: Tensor of shape (B, P) giving the number of points in each part.
 
-    Returns:
-        parts (list[list[torch.Tensor]]), where parts[b][p] is the p-th part of the b-th batch of shape (N_p, 3).
+    Returns: 
+        A list of length B, where parts[b] is itself a list of P or fewer tensors of shape (N_i, 3).
     """
-    B, P = points_per_part.shape
-    offsets = points_per_part.cumsum(dim=1) - points_per_part
-    parts = []
-    for b in range(B):
-        part_in_batch = []
-        for p in range(P):
-            if points_per_part[b, p] == 0:
-                continue
-            part_in_batch.append(x[b, offsets[b, p] : offsets[b, p] + points_per_part[b, p], :])
-        parts.append(part_in_batch)
+    counts_per_batch = points_per_part.tolist()
+    parts: list[list[torch.Tensor]] = []
+    for b, counts in enumerate(counts_per_batch):
+        splits = torch.split(x[b], counts, dim=0)
+        parts.append([s for s in splits if s.size(0) > 0])
     return parts
 
 
@@ -125,4 +120,3 @@ def flatten_valid_parts(x: torch.Tensor, points_per_part: torch.Tensor) -> torch
     """
     part_valids = points_per_part != 0                        # (B, P)
     return x[part_valids]
-
