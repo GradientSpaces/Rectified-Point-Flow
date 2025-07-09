@@ -36,22 +36,17 @@ def setup(cfg: DictConfig):
         L.seed_everything(seed, workers=True, verbose=False)
         logger.info(f"Seed set to {seed} for overlap prediction")
 
-    # load model and checkpoint
+    datamodule: L.LightningDataModule = hydra.utils.instantiate(cfg.data)
     model = hydra.utils.instantiate(cfg.model)
     load_checkpoint_for_module(model, ckpt_path)
     model.eval()
     
-    # data module
-    datamodule: L.LightningDataModule = hydra.utils.instantiate(cfg.data)
-    
-    # visualization callback
     vis_config = cfg.get("visualizer", {})
     callbacks = []
-    if vis_config:
+    if vis_config and cfg["visualizer"]["renderer"] != "none":
         vis_callback: OverlapVisualizationCallback = hydra.utils.instantiate(vis_config)
         callbacks.append(vis_callback)
     
-    # trainer
     trainer: L.Trainer = hydra.utils.instantiate(
         cfg.trainer,
         callbacks=callbacks,
@@ -66,16 +61,11 @@ def setup(cfg: DictConfig):
 def main(cfg: DictConfig):
     """Main function for overlap prediction and visualization."""
     
-    # setup components
     model, datamodule, trainer = setup(cfg)
-    
-    # run inference
-    trainer.test(model=model, datamodule=datamodule)
-    
-    # logging
+    trainer.test(model=model, datamodule=datamodule, verbose=False)
     logger.info("Done!")
     vis_dir = Path(cfg.get('log_dir')) / "visualizations"
-    logger.info(f"Visualizations saved to: {vis_dir}")
+    logger.info(f"Visualizations saved to: {vis_dir}/")
 
 
 if __name__ == "__main__":

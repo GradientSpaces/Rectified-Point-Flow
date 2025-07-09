@@ -5,7 +5,7 @@ from typing import Any, Dict
 import torch
 import lightning as L
 
-from .metrics import compute_object_cd, compute_part_acc
+from .metrics import compute_object_cd, compute_part_acc, compute_transform_errors
 
 
 class Evaluator:
@@ -18,35 +18,45 @@ class Evaluator:
         self,
         data: Dict[str, Any],
         pointclouds_pred: torch.Tensor,
+        rotations_pred: torch.Tensor,
+        translations_pred: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
-        """Compute object Chamfer distance and part accuracy.
-
-        Args:
-            data: Dictionary containing:
-                pointclouds_gt (B, N, 3): Ground truth point clouds.
-                scale (B,): Scale factors.
-                points_per_part (B, P): Points per part.
-            pointclouds_pred (B, N, 3): Sampled point clouds.
-
-        Returns:
-            Dict with:
-                object_cd (torch.Tensor): Object Chamfer distance, shape (B,).
-                part_acc (torch.Tensor): Part accuracy, shape (B,).
-        """
-        gt = data["pointclouds_gt"]  # (B, N, 3)
-        scale = data["scale"][:, 0]  # (B,)
-        B, N = gt.shape[:2]
-        pred = pointclouds_pred.view(B, N, 3).detach()
+        """Compute evaluation metrics."""
+        pts = data["pointclouds"]                       # (B, N, 3)
+        pts_gt = data["pointclouds_gt"]                 # (B, N, 3)
+        points_per_part = data["points_per_part"]       # (B, P)
+        anchor_part = data["anchor_part"]               # (B, P)
+        scale = data["scale"][:, 0]                     # (B,)
         
-        # Rescale both GT and predictions to original scale
-        pred = pred * scale.view(B, 1, 1)
-        gt = gt * scale.view(B, 1, 1)
+        # Rescale to original scale
+        B, _, _ = pts_gt.shape
+        pts_gt_rescaled = pts_gt * scale.view(B, 1, 1)
+        pts_pred_rescaled = pointclouds_pred * scale.view(B, 1, 1)
 
-        # Compute metrics via helper functions
-        object_cd = compute_object_cd(gt, pred)                           # (B,)
-        part_acc = compute_part_acc(gt, pred, data["points_per_part"])    # (B,)
+        object_cd = compute_object_cd(pts_gt_rescaled, pts_pred_rescaled)
+        part_acc, matched_parts = compute_part_acc(pts_gt_rescaled, pts_pred_rescaled, points_per_part)
+        rot_errors, trans_errors = compute_transform_errors(
+            pts, pts_gt, rotations_pred, translations_pred, points_per_part, anchor_part, matched_parts, scale,
+        )
 
-        return {"object_cd": object_cd, "part_acc": part_acc}
+        rot_recalls = self._recall_at_thresholds(rot_errors, [5, 10])
+        trans_recalls = self._recall_at_thresholds(trans_errors, [0.01, 0.05])
+
+        return {
+            "part_accuracy": part_acc,
+            "object_chamfer": object_cd,
+            "rotation_error": rot_errors,
+            "translation_error": trans_errors,
+            "recall_at_5deg": rot_recalls[0],
+            "recall_at_10deg": rot_recalls[1],
+            "recall_at_1cm": trans_recalls[0],
+            "recall_at_5cm": trans_recalls[1],
+        }
+    
+    @staticmethod
+    def _recall_at_thresholds(metrics: torch.Tensor, thresholds: list[float]) -> list[torch.Tensor]:
+        """Compute metrics of shape (B,) at thresholds."""
+        return [(metrics <= threshold).float() for threshold in thresholds]
 
     def _save_single_result(
         self,
@@ -77,6 +87,8 @@ class Evaluator:
         self,
         data: Dict[str, Any],
         pointclouds_pred: torch.Tensor,
+        rotations_pred: torch.Tensor,
+        translations_pred: torch.Tensor,
         save_results: bool = False,
     ) -> Dict[str, torch.Tensor]:
         """Run evaluation and optionally save results.
@@ -92,12 +104,22 @@ class Evaluator:
                 num_parts (B,): Number of parts.
 
             pointclouds_pred (B, N, 3): Model output samples.
+            rotations_pred (B, P, 3, 3): Estimated rotation matrices.
+            translations_pred (B, P, 3): Estimated translation vectors.
             save_results (bool): If True, save each result to log_dir/results.
 
         Returns:
-            Dict of computed metrics.
+            A dictionary with:
+                object_chamfer_dist (B,): Object Chamfer distance in meters.
+                part_accuracy (B,): Part accuracy.
+                rotation_error (B,): Rotation errors in degrees.
+                translation_error (B,): Translation errors in meters.
+                recall_at_5deg (B,): Recall at 5 degrees.
+                recall_at_10deg (B,): Recall at 10 degrees.
+                recall_at_1cm (B,): Recall at 1 cm.
+                recall_at_5cm (B,): Recall at 5 cm.
         """
-        metrics = self._compute_metrics(data, pointclouds_pred)
+        metrics = self._compute_metrics(data, pointclouds_pred, rotations_pred, translations_pred)
         if save_results:
             for i in range(data["points_per_part"].size(0)):
                 self._save_single_result(data, metrics, i)

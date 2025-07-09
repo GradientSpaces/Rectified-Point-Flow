@@ -112,6 +112,7 @@ class VisualizationCallback(Callback):
         outputs: Any,
         batch: dict[str, torch.Tensor],
         batch_idx: int,
+        dataloader_idx: int = 0,
     ) -> None:
         """Override this method in subclasses for specific visualization logic."""
         raise NotImplementedError("Subclasses must implement on_test_batch_end")
@@ -156,25 +157,24 @@ class FlowVisualizationCallback(VisualizationCallback):
             sample_name: Optional sample name for filename.
         """
         try:
-            base_name = f"{sample_idx:05d}"
+            base_name = f"{sample_idx:04d}"
             if sample_name:
                 base_name += f"_{sample_name.replace('/', '-')}"
-            gif_path = self.vis_dir / f"{base_name}_trajectory.gif"
+            gif_path = self.vis_dir / f"{base_name}-trajectory.gif"
 
             # Render trajectory steps
             rendered_images = visualize_point_clouds(
                 points=trajectory,                                          # (num_steps, N, 3)
-                colors=colors,                                              # (N, 3) - same for all steps
+                colors=colors,                                              # (N, 3)
                 **self._vis_kwargs,
-            )   # (num_steps, H, W, 3)
-            
+            )                                                               # (num_steps, H, W, 3)
             frames = []
             num_steps = trajectory.shape[0]
             for step in range(num_steps):
                 frame_pil = img_tensor_to_pil(rendered_images[step])        # (H, W, 3)
                 frames.append(frame_pil)
             
-            # Frame duration and pause on last frame
+            # Frame duration and pause on last frame in ms
             duration = int(1000 / self.trajectory_gif_fps)
             durations = [duration] * len(frames)
             durations[-1] = int(duration + self.trajectory_gif_pause_last_frame * 1000)
@@ -197,6 +197,7 @@ class FlowVisualizationCallback(VisualizationCallback):
         outputs: Any,
         batch: dict[str, torch.Tensor],
         batch_idx: int,
+        dataloader_idx: int = 0,
     ) -> None:
         """Save flow visualizations at the end of each test batch."""
         if self.vis_dir is None:
@@ -207,9 +208,9 @@ class FlowVisualizationCallback(VisualizationCallback):
         part_ids = ppp_to_ids(points_per_part)                                # (bs, N)
         input_points = batch["pointclouds"].reshape(B, -1, 3)                 # (bs, N, 3)
         
-        # Multiple generations
-        trajectories_list = outputs['n_trajectories']                         # (K, num_steps, num_points, 3)
-        K = len(outputs['n_trajectories'])
+        # K generations
+        trajectories_list = outputs['trajectories']                           # (K, num_steps, num_points, 3)
+        K = len(trajectories_list)
         pointclouds_pred_list = [traj[-1].reshape(B, -1, 3) for traj in trajectories_list]
 
         if self.scale_to_original_size:
@@ -223,19 +224,16 @@ class FlowVisualizationCallback(VisualizationCallback):
             if "name" in batch and batch["name"][i] is not None:
                 sample_name = batch["name"][i]
 
-            # sample colors for each point
             colors = part_ids_to_colors(
                 part_ids[i], colormap=self.colormap, part_order="random"
             )
             for n in range(K):
-                # save condition point cloud
                 self._save_sample_images(
                     points=input_points[i],
                     colors=colors,
                     sample_idx=sample_idx,
                     sample_name=f"{sample_name}-condition-input",
                 )
-                # save generated point cloud
                 pointclouds_pred = pointclouds_pred_list[n]
                 self._save_sample_images(
                     points=pointclouds_pred[i],
@@ -245,13 +243,11 @@ class FlowVisualizationCallback(VisualizationCallback):
                 )
 
                 if self.save_trajectory:
-                    # save trajectory as GIF
                     trajectory = trajectories_list[n]
                     num_steps = trajectory.shape[0]
                     trajectory = trajectory.reshape(num_steps, B, -1, 3).permute(1, 0, 2, 3)  # (bs, num_steps, N, 3)
                     if self.scale_to_original_size:
-                        trajectory = trajectory * scale[:, None, None, None]        # (bs, num_steps, N, 3)
-                    
+                        trajectory = trajectory * scale[:, None, None, None]                  # (bs, num_steps, N, 3)
                     self._save_trajectory_gif(
                         trajectory=trajectory[i],
                         colors=colors,
@@ -273,6 +269,7 @@ class OverlapVisualizationCallback(VisualizationCallback):
         outputs: Any,
         batch: dict[str, torch.Tensor],
         batch_idx: int,
+        dataloader_idx: int = 0,
     ) -> None:
         """Save overlap visualizations at the end of each test batch."""
         if self.vis_dir is None:
@@ -280,13 +277,13 @@ class OverlapVisualizationCallback(VisualizationCallback):
 
         overlap_prob = outputs["overlap_prob"]                                # (total_points,)
         B, _ = batch["points_per_part"].shape                                 
-        input_points = batch["pointclouds_gt"].reshape(B, -1, 3)              # (bs, N, 3)
+        pts_gt = batch["pointclouds_gt"].reshape(B, -1, 3)                    # (bs, N, 3)
         overlap_prob = overlap_prob.reshape(B, -1)                            # (bs, N)
 
         # Scale to original size
         if self.scale_to_original_size:
             scale = batch["scale"][:, 0]                                      # (bs,)
-            input_points = input_points * scale[:, None, None]
+            pts_gt = pts_gt * scale[:, None, None]
 
         for i in range(B):
             sample_idx = batch_idx * B + i
@@ -296,7 +293,7 @@ class OverlapVisualizationCallback(VisualizationCallback):
             
             colors = probs_to_colors(overlap_prob[i], colormap=self.colormap)
             self._save_sample_images(
-                points=input_points[i],
+                points=pts_gt[i],
                 colors=colors,
                 sample_idx=sample_idx,
                 sample_name=f"{sample_name}-overlap-pred" if sample_name else f"overlap",

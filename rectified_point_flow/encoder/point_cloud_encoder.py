@@ -100,7 +100,7 @@ class PointCloudEncoder(pl.LightningModule):
         points_offset = torch.cumsum(points_per_part[n_valid_partsarts], dim=-1)
         object_offset = torch.arange(1, B + 1, device=points_per_part.device) * N
 
-        with torch.autocast(device_type="cuda", dtype=torch.float16):
+        with torch.autocast(device_type=self.device.type, dtype=torch.float16):
             super_point, point = self.encoder({
                 "coord": part_coords,
                 "offset": points_offset,

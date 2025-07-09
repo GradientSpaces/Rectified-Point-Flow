@@ -49,7 +49,6 @@ def ids_to_ppp(part_ids: torch.Tensor, num_parts: Optional[int] = None) -> torch
     points_per_part = torch.zeros(
         batch_size, num_parts, device=part_ids.device, dtype=torch.long
     )
-    
     for batch_idx in range(batch_size):
         # Count occurrences of each part ID
         valid_ids = part_ids[batch_idx][part_ids[batch_idx] >= 0]  # Filter out padding (-1, etc.)
@@ -58,6 +57,29 @@ def ids_to_ppp(part_ids: torch.Tensor, num_parts: Optional[int] = None) -> torch
             points_per_part[batch_idx, :len(part_counts)] = part_counts
     
     return points_per_part
+
+
+def split_parts(x: torch.Tensor, points_per_part: torch.Tensor) -> list[list[torch.Tensor]]:
+    """Split a packed tensor into per-part point clouds.
+    
+    Args:
+        x: Tensor of shape (B, N, 3).
+        points_per_part: Number of points per part of shape (B, P).
+
+    Returns:
+        parts (list[list[torch.Tensor]]), where parts[b][p] is the p-th part of the b-th batch of shape (N_p, 3).
+    """
+    B, P = points_per_part.shape
+    offsets = points_per_part.cumsum(dim=1) - points_per_part
+    parts = []
+    for b in range(B):
+        part_in_batch = []
+        for p in range(P):
+            if points_per_part[b, p] == 0:
+                continue
+            part_in_batch.append(x[b, offsets[b, p] : offsets[b, p] + points_per_part[b, p], :])
+        parts.append(part_in_batch)
+    return parts
 
 
 def broadcast_part_to_points(x: torch.Tensor, points_per_part: torch.Tensor) -> torch.Tensor:
@@ -70,8 +92,8 @@ def broadcast_part_to_points(x: torch.Tensor, points_per_part: torch.Tensor) -> 
     Returns:
         Tensor of shape (total_points, ...).
     """
-    part_valids = points_per_part != 0  # (B, P)
-    points_per_valid_part = points_per_part[part_valids]  # (valid_P,)
+    part_valids = points_per_part != 0                          # (B, P)
+    points_per_valid_part = points_per_part[part_valids]        # (valid_P,)
     return x.repeat_interleave(points_per_valid_part, dim=0)
 
 
@@ -86,7 +108,7 @@ def broadcast_batch_to_part(x: torch.Tensor, points_per_part: torch.Tensor) -> t
         Tensor of shape (valid_P, ...).
     """
     B, P = points_per_part.shape
-    part_valids = points_per_part != 0  # (B, P)
+    part_valids = points_per_part != 0                          # (B, P)
     expanded = x.unsqueeze(1).expand(B, P, *x.shape[1:])
     return expanded[part_valids]
 
@@ -101,6 +123,6 @@ def flatten_valid_parts(x: torch.Tensor, points_per_part: torch.Tensor) -> torch
     Returns:
         Tensor of shape (valid_P, ...).
     """
-    part_valids = points_per_part != 0  # (B, P)
+    part_valids = points_per_part != 0                        # (B, P)
     return x[part_valids]
 

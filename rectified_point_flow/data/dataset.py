@@ -81,6 +81,41 @@ class PointCloudDataset(Dataset):
         return len(self.fragments)
 
     def __getitem__(self, index):
+        """Get a sample from the dataset.
+        
+        Returns:
+            A dictionary containing:
+            - index (int): the index of the fragment
+            - name (str): the name of the fragment
+            - overlap_threshold (float): the overlap threshold
+            - dataset_name (str): the name of the dataset
+            - num_parts (int): the number of parts
+
+            - pointclouds (N, 3) float32: Transformed point clouds.
+            - pointclouds_gt (N, 3) float32: Assembled point clouds (ground truth).
+            - pointclouds_normals (N, 3) float32: Transformed point cloud normals.
+            - pointclouds_normals_gt (N, 3) float32: Assembled point cloud normals (ground truth).
+            - rotations (P, 3, 3) float32: Rotation matrices.
+            - translations (P, 3) float32: Translation vectors.
+            - points_per_part (P) int64: Number of points per part.
+            - scale (P) float32: Scale of the point clouds.
+            - anchor_part (P) bool: Whether the part is an anchor part.
+            - init_rotation (3, 3) float32: Initial rotation matrix of the pointclouds_gt, used for recovering the original data.
+
+        Note:
+            - For arrays rotations, translations, points_per_part, scale, anchor_part:
+               - The first dimension is the maximum number of parts P.
+               - We pad zeros to the array to make it of shape (P, ...).
+               
+            - For arrays pointclouds, pointclouds_gt, pointclouds_normals, pointclouds_normals_gt:
+               - The first dimension is the number of points N.
+               - We stack all parts into a single array.
+               - The points_per_part can be used to unpack them.
+               
+            - The rotations and translations are followed by:
+                pointclouds_gt[st:ed] = pointclouds[st:ed] @ rotations[i].T + translations[i]
+        """
+        
         frag = self.fragments[index]
         if self.use_folder:
             sample = self._load_from_folder(frag, index)
@@ -233,6 +268,7 @@ class PointCloudDataset(Dataset):
 
     def _transform(self, data: dict) -> dict:
         """Apply scaling, rotation, centering, shuffling, and padding."""
+
         pcs_gt = data["pointclouds_gt"]
         pns_gt = data["pointclouds_normals_gt"]
         n_parts = data["num_parts"]
@@ -242,10 +278,9 @@ class PointCloudDataset(Dataset):
         pts_gt = np.concatenate(pcs_gt)
         normals_gt = np.concatenate(pns_gt)
 
-        # Center point clouds
         pts_gt, _ = center_pcd(pts_gt)
 
-        # Make point clouds y-up
+        # Rotate point clouds to y-up
         pts_gt, normals_gt = self._make_y_up(pts_gt, normals_gt)
 
         # Scale point clouds to [-1, 1] and apply random scaling
@@ -254,42 +289,48 @@ class PointCloudDataset(Dataset):
             scale *= np.random.uniform(*self.random_scale_range)
         pts_gt /= scale
 
-        # Initial rotation (quat in wxyz format)
+        # Initial rotation to remove the pose prior (e.g., y-up) during training
         if self.split == "train":
-            pts_gt, normals_gt, init_quat = rotate_pcd(pts_gt, normals_gt)
+            pts_gt, normals_gt, init_rot = rotate_pcd(pts_gt, normals_gt)
         else:
-            init_quat = np.array([1, 0, 0, 0])
+            init_rot = np.eye(3)
 
         pts, normals = pts_gt.copy(), normals_gt.copy()
 
         def _proc_part(i):
             """Process one part: center, rotate, and shuffle."""
             st, ed = offsets[i], offsets[i+1]
-            # center the point cloud
+            
+            # Center the point cloud
             part, trans = center_pcd(pts_gt[st:ed])
-            # random rotate the point cloud
-            part, norms, quant = rotate_pcd(part, normals_gt[st:ed])
-            # random shuffle point order
+            
+            # Random rotate the point cloud
+            part, norms, rot = rotate_pcd(part, normals_gt[st:ed])
+            
+            # Random shuffle point order
             _order = np.random.permutation(len(part))
             pts[st: ed] = part[_order]
             normals[st: ed] = norms[_order]
             pts_gt[st:ed] = pts_gt[st:ed][_order]
             normals_gt[st:ed] = normals_gt[st:ed][_order]
-            return quant, trans
+            
+            return rot, trans
 
         results = list(self.pool.map(_proc_part, range(n_parts)))
-        quats, trans = zip(*results)
+        rots, trans = zip(*results)
 
         # Padding to max_parts
         pts_per_part = pad_data(counts, self.max_parts)
-        quats = pad_data(np.stack(quats), self.max_parts)
+        rots = pad_data(np.stack(rots), self.max_parts)
         trans = pad_data(np.stack(trans), self.max_parts)
         scale = pad_data(np.array([scale] * n_parts), self.max_parts)
 
-        # Anchor selection (primary part and extra parts)
+        # Use the largest part as the anchor part
         anchor = np.zeros(self.max_parts, bool)
         primary = np.argmax(counts)
         anchor[primary] = True
+        rots[primary] = np.eye(3)
+        trans[primary] = np.zeros(3)
 
         # Select extra parts if multi_anchor is enabled
         if self.multi_anchor and n_parts > 2 and np.random.rand() > 1 / n_parts:
@@ -303,8 +344,9 @@ class PointCloudDataset(Dataset):
                     np.where(candidates)[0], extra_n, replace=False
                 )
                 anchor[extra_idx] = True
+                rots[extra_idx] = np.eye(3)
+                trans[extra_idx] = np.zeros(3)
 
-        # Return the transformed data
         results = {}
         for key in ["index", "name", "overlap_threshold"]:
             results[key] = data[key]
@@ -315,12 +357,12 @@ class PointCloudDataset(Dataset):
         results["pointclouds_gt"] = pts_gt.astype(np.float32)
         results["pointclouds_normals"] = normals.astype(np.float32)
         results["pointclouds_normals_gt"] = normals_gt.astype(np.float32)
-        results["quaternions"] = quats.astype(np.float32)
+        results["rotations"] = rots.astype(np.float32)
         results["translations"] = trans.astype(np.float32)
         results["points_per_part"] = pts_per_part.astype(np.int64)
         results["scale"] = scale.astype(np.float32)
         results["anchor_part"] = anchor.astype(bool)
-        results["init_rotation"] = init_quat.astype(np.float32)
+        results["init_rotation"] = init_rot.astype(np.float32)
 
         return results
 
@@ -342,3 +384,17 @@ if __name__ == "__main__":
             print(f"{key:<20} {val.shape}, {val.dtype}")
         else:
             print(f"{key:<20} {val}")
+
+    # Sanity check for transformations
+    n_parts = sample["num_parts"]
+    pts_gt = sample["pointclouds_gt"]
+    pts = sample["pointclouds"]
+    pts_per_part = sample["points_per_part"]
+    offsets = np.cumsum(pts_per_part)
+    for i in range(n_parts):
+        if not sample["anchor_part"][i]:
+            st, ed = offsets[i], offsets[i + 1]
+            rot, trans = sample["rotations"][i], sample["translations"][i]
+            pts_recovered = (pts[st:ed] @ rot.T) + trans
+            assert np.allclose(pts_recovered, pts_gt[st:ed], atol=1e-6)
+    print("Sanity check passed!")

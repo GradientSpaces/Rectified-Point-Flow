@@ -62,7 +62,6 @@ class PointCloudDataModule(L.LightningDataModule):
         """
         super().__init__()
         self.data_root = data_root
-        self.dataset_names = dataset_names
         self.up_axis = up_axis
         self.min_parts = min_parts
         self.max_parts = max_parts
@@ -79,40 +78,41 @@ class PointCloudDataModule(L.LightningDataModule):
         self.val_dataset: Optional[ConcatDataset] = None
 
         # Initialize dataset paths
-        self._dataset_paths = {}
-        self._dataset_names = []
-        self._initialize_dataset_paths()
+        self.dataset_paths = {}
+        self.dataset_names = []
+        self._initialize_dataset_paths(dataset_names)
     
-    def _initialize_dataset_paths(self):
-        use_all_datasets = len(self.dataset_names) == 0
+    def _initialize_dataset_paths(self, dataset_names: List[str]):
+        use_all_datasets = len(dataset_names) == 0
+
         for file in os.listdir(self.data_root):
             if file.endswith(".hdf5"):
                 dataset_name = file.split(".")[0]
-                if use_all_datasets or dataset_name in self.dataset_names:
-                    self._dataset_names.append(dataset_name)
-                    self._dataset_paths[dataset_name] = os.path.join(self.data_root, file)
+                if use_all_datasets or dataset_name in dataset_names:
+                    self.dataset_names.append(dataset_name)
+                    self.dataset_paths[dataset_name] = os.path.join(self.data_root, file)
             elif os.path.isdir(os.path.join(self.data_root, file)):
                 dataset_name = file
-                if use_all_datasets or dataset_name in self.dataset_names:
-                    self._dataset_names.append(dataset_name)
-                    self._dataset_paths[dataset_name] = os.path.join(self.data_root, file)
+                if use_all_datasets or dataset_name in dataset_names:
+                    self.dataset_names.append(dataset_name)
+                    self.dataset_paths[dataset_name] = os.path.join(self.data_root, file)
             else:
                 logger.warning(f"Unknown file type: {file} in {self.data_root}. Skipping...")
-        
-        logger.info(f"Using {len(self._dataset_paths)} datasets: {list(self._dataset_paths.keys())}")
+        logger.info(f"Using {len(self.dataset_paths)} datasets: {list(self.dataset_paths.keys())}")
 
     def setup(self, stage: str):
         """Set up datasets for training/validation/testing."""
-        logger.info(f"--{'-' * 16}---{'-' * 8}---{'-' * 8}---{'-' * 8}--")
+        make_line = lambda: f"--{'-' * 16}---{'-' * 8}---{'-' * 8}---{'-' * 8}--"
+        logger.info(make_line())
         logger.info(f"| {'Dataset':<16} | {'Split':<8} | {'Length':<8} | {'Parts':<8} |")
-        logger.info(f"--{'-' * 16}---{'-' * 8}---{'-' * 8}---{'-' * 8}--")
+        logger.info(make_line())
 
         if stage == "fit":
             self.train_dataset = ConcatDataset(
                 [
                     PointCloudDataset(
                         split="train",
-                        data_path=self._dataset_paths[dataset_name],
+                        data_path=self.dataset_paths[dataset_name],
                         up_axis=self.up_axis.get(dataset_name, "y"),
                         dataset_name=dataset_name,
                         min_parts=self.min_parts,
@@ -123,17 +123,15 @@ class PointCloudDataModule(L.LightningDataModule):
                         random_scale_range=self.random_scale_range,
                         multi_anchor=self.multi_anchor,
                     )
-                    for dataset_name in self._dataset_names
+                    for dataset_name in self.dataset_names
                 ]
             )
-            
-            logger.info(f"--{'-' * 16}---{'-' * 8}---{'-' * 8}---{'-' * 8}--")
-
+            logger.info(make_line())
             self.val_dataset = ConcatDataset(
                 [
                     PointCloudDataset(
                         split="val",
-                        data_path=self._dataset_paths[dataset_name],
+                        data_path=self.dataset_paths[dataset_name],
                         up_axis=self.up_axis.get(dataset_name, "y"),
                         dataset_name=dataset_name,
                         min_parts=self.min_parts,
@@ -142,19 +140,19 @@ class PointCloudDataModule(L.LightningDataModule):
                         min_points_per_part=self.min_points_per_part,
                         limit_val_samples=self.limit_val_samples,
                     )
-                    for dataset_name in self._dataset_names
+                    for dataset_name in self.dataset_names
                 ]
             )
-            logger.info(f"--{'-' * 16}---{'-' * 8}---{'-' * 8}---{'-' * 8}--")
+            logger.info(make_line())
             logger.info("Total Train Samples: " + str(self.train_dataset.cumulative_sizes[-1]))
             logger.info("Total Val Samples: " + str(self.val_dataset.cumulative_sizes[-1]))
 
-        elif stage in ["test", "predict", "validate"]:
+        elif stage == "validate":
             self.val_dataset = ConcatDataset(
                 [
                     PointCloudDataset(
                         split="val",
-                        data_path=self._dataset_paths[dataset_name],
+                        data_path=self.dataset_paths[dataset_name],
                         dataset_name=dataset_name,
                         up_axis=self.up_axis.get(dataset_name, "y"),
                         min_parts=self.min_parts,
@@ -163,10 +161,29 @@ class PointCloudDataModule(L.LightningDataModule):
                         min_points_per_part=self.min_points_per_part,
                         limit_val_samples=self.limit_val_samples,
                     )
-                    for dataset_name in self._dataset_names
+                    for dataset_name in self.dataset_names
                 ]
             )
-            logger.info(f"--{'-' * 16}---{'-' * 8}---{'-' * 8}---{'-' * 8}--")
+            logger.info(make_line())
+            logger.info("Total Val Samples: " + str(self.val_dataset.cumulative_sizes[-1]))
+
+        elif stage in ["test", "predict"]:
+            self.test_dataset = [
+                PointCloudDataset(
+                    split="val",
+                    data_path=self.dataset_paths[dataset_name],
+                    dataset_name=dataset_name,
+                    up_axis=self.up_axis.get(dataset_name, "y"),
+                    min_parts=self.min_parts,
+                    max_parts=self.max_parts,
+                    num_points_to_sample=self.num_points_to_sample,
+                    min_points_per_part=self.min_points_per_part,
+                    limit_val_samples=self.limit_val_samples,
+                )
+                for dataset_name in self.dataset_names
+            ]
+            logger.info(make_line())
+            logger.info("Total Test Samples: " + str(sum(len(dataset) for dataset in self.test_dataset)))
 
     def train_dataloader(self):
         """Get training dataloader."""
@@ -193,9 +210,12 @@ class PointCloudDataModule(L.LightningDataModule):
 
     def test_dataloader(self):
         """Get test dataloader."""
-        return DataLoader(
-            self.val_dataset,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            persistent_workers=False,
-        )
+        return [
+            DataLoader(
+                dataset,
+                batch_size=self.batch_size,
+                num_workers=self.num_workers,
+                persistent_workers=False,
+            )
+            for dataset in self.test_dataset
+        ]

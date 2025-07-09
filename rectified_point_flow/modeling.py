@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .eval.evaluator import Evaluator
+from .procrustes import fit_transformations
 from .utils.checkpoint import get_rng_state, load_checkpoint_for_module, set_rng_state
 from .utils.logging import MetricsMeter, log_metrics_on_step, log_metrics_on_epoch
 from .utils.point_clouds import broadcast_batch_to_part, flatten_valid_parts
@@ -114,7 +115,7 @@ class RectifiedPointFlow(L.LightningModule):
     def _encode(self, data_dict: dict):
         """Extract features from input data using FP16."""
         with torch.inference_mode():
-            with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=True):
+            with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=True):
                 out_dict = self.feature_extractor(data_dict)
         points = out_dict["point"]
         points["batch"] = points["batch_level1"].clone()
@@ -209,14 +210,14 @@ class RectifiedPointFlow(L.LightningModule):
             "norm_v_t": v_t.norm(dim=-1).mean(),
         }
 
-    def training_step(self, data_dict: dict, batch_idx: int):
+    def training_step(self, data_dict: dict, batch_idx: int, dataloader_idx: int = 0):
         """Training step."""
         output_dict = self.forward(data_dict)
         loss_dict = self.loss(output_dict)
         log_metrics_on_step(self, loss_dict, prefix="train")
         return loss_dict["loss"]
 
-    def validation_step(self, data_dict: dict, batch_idx: int):
+    def validation_step(self, data_dict: dict, batch_idx: int, dataloader_idx: int = 0):
         """Validation step."""
         output_dict = self.forward(data_dict)
         loss_dict = self.loss(output_dict)
@@ -229,39 +230,47 @@ class RectifiedPointFlow(L.LightningModule):
         )
         return loss_dict["loss"]
 
-    def test_step(self, data_dict: dict, batch_idx: int):
+    def test_step(self, data_dict: dict, batch_idx: int, dataloader_idx: int = 0):
         """Test step with support for multiple generations."""
         latent = self._encode(data_dict)
         n_trajectories = []
+        n_rotations_pred = []
+        n_translations_pred = []
         n_eval_results = []
+        B, _, _ = data_dict["pointclouds"].shape
+
         for _ in range(self.n_generations):
             trajectory = self.sample_rectified_flow(data_dict, latent, return_tarjectory=True)
-            pointclouds_pred = trajectory[-1]
-            eval_results = self.evaluator.run(data_dict, pointclouds_pred)            
+            pointclouds_pred = trajectory[-1].view(B, -1, 3).detach()
+            rotations_pred, translations_pred = fit_transformations(
+                data_dict["pointclouds"], pointclouds_pred, data_dict["points_per_part"]
+            )
+            eval_results = self.evaluator.run(data_dict, pointclouds_pred, rotations_pred, translations_pred)
             n_trajectories.append(trajectory)
+            n_rotations_pred.append(rotations_pred)
+            n_translations_pred.append(translations_pred)
             n_eval_results.append(eval_results)
         
         # Compute average metrics
         avg_results = {}
         for key in n_eval_results[0].keys():
-            avg_results[key] = sum(
-                result[key] for result in n_eval_results
-            ) / len(n_eval_results)
-        self.meter.add_metrics(
-            dataset_names=data_dict['dataset_name'], **avg_results
-        )
-        # Compute best-of-n metrics
+            avg_results[f'Avg/{key}'] = sum(result[key] for result in n_eval_results) / len(n_eval_results)
+        self.log_dict(avg_results, prog_bar=False)
+
+        # Compute best of N (BoN) metrics
         if self.n_generations > 1:
             best_results = {}
             for key in n_eval_results[0].keys():
                 values = [result[key] for result in n_eval_results]
-                agg_fn = max if 'acc' in key else min
-                best_results[key + '_bon'] = agg_fn(values)
-            self.meter.add_metrics(
-                dataset_names=data_dict['dataset_name'], **best_results
-            )
+                agg_fn = max if ('acc' in key or 'recall' in key) else min
+                best_results[f'BoN/{key}'] = agg_fn(values)
+            self.log_dict(best_results, prog_bar=False)
         
-        return {'n_trajectories': n_trajectories, **avg_results}
+        return {
+            'trajectories': n_trajectories,
+            'rotations_pred': n_rotations_pred,
+            'translations_pred': n_translations_pred,
+        }
     
     def sample_rectified_flow(
         self, 
@@ -327,6 +336,11 @@ class RectifiedPointFlow(L.LightningModule):
     def on_validation_epoch_end(self):
         metrics = self.meter.compute_average()
         log_metrics_on_epoch(self, metrics, prefix="val")
+        return metrics
+    
+    def on_test_epoch_end(self):
+        metrics = self.meter.compute_average()
+        log_metrics_on_epoch(self, metrics, prefix="test")
         return metrics
         
     def on_save_checkpoint(self, checkpoint):

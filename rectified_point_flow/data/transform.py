@@ -38,26 +38,23 @@ def center_pcd(pcd: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Center point cloud at origin."""
     center = np.mean(pcd, axis=0)
     pcd = pcd - center
-    return pcd, -center
+    return pcd, center
 
 
 def rotate_pcd(pcd: np.ndarray, normals: np.ndarray = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Randomly rotate point cloud."""
+    """Randomly rotate point cloud and normals."""
     rot = Rotation.random()
     pcd = rot.apply(pcd)
     
-    # Convert to PyTorch3D convention (w, x, y, z) from scipy (x, y, z, w)
-    # In later code, we use PyTorch3D for efficient point cloud transformations.
-    quat_xyzw = rot.as_quat()
-    quat_wxyz = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
-    
     if normals is not None:
         normals = rot.apply(normals)
-    return pcd, normals, quat_wxyz
+
+    rot_inv = rot.inv()
+    return pcd, normals, rot_inv.as_matrix()
 
 
 def pad_data(input_data: np.ndarray, max_parts: int) -> np.ndarray:
-    """Pad zeros to data of shape (N, ...) to (max_parts, ...)"""
+    """Pad zeros to data of shape (p, ...) to (max_parts, ...)"""
     d = np.array(input_data)
     pad_shape = (max_parts,) + tuple(d.shape[1:])
     pad_data = np.zeros(pad_shape, dtype=np.float32)

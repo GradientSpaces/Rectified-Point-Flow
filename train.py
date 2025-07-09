@@ -40,8 +40,7 @@ def main(cfg: DictConfig):
 
     ckpt_path = cfg.get("ckpt_path")
     is_fresh_run = not (ckpt_path and os.path.exists(ckpt_path))
-    
-    # Setup random seed
+
     if is_fresh_run:
         seed = cfg.get("seed", 0)
         L.seed_everything(seed, workers=True, verbose=False)
@@ -50,14 +49,9 @@ def main(cfg: DictConfig):
         logger.info("Resume training from checkpoint, no random seed set.")
         setup_wandb_resume(cfg)
 
-    # Setup training components
     model, datamodule, trainer, loggers = setup_training(cfg)
-
-    # Log config
     log_config_to_wandb(loggers, cfg)
     log_code_to_wandb(loggers)
-
-    # Start training
     trainer.fit(
         model,
         datamodule=datamodule,
