@@ -120,7 +120,7 @@ def compute_transform_errors(
     and predicted parts. The rotation error (RE) is computed using the angular difference (Rodrigues formula). 
     The translation error (TE) is computed using the L2 norm of the translation vectors.
 
-    Note that the scale of the point clouds is not considered in the computation of the translation errors.
+    Note that the scale of the point clouds is considered in the computation of the translation errors.
     
     Args:
         pointclouds (B, N, 3): Condition point clouds.
