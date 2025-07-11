@@ -32,16 +32,16 @@ def flow_sampler(
     dt = 1.0 / num_steps
     x_t = x_1.clone()
     x_t[anchor_idx] = x_0[anchor_idx]
-    trajectory = []
+    trajectory = torch.empty((num_steps, x_1.shape[0], x_1.shape[1]), device=x_1.device)
 
     for step in range(num_steps):
         t = 1 - step * dt
         x_t = step_fn(x_t, t, dt, flow_model_fn, anchor_idx, x_0)
         if return_trajectory:
-            trajectory.append(x_t.clone())
+            trajectory[step] = x_t.clone()
     
     if return_trajectory:
-        return torch.stack(trajectory)
+        return trajectory
     return x_t
 
 
