@@ -68,12 +68,12 @@ This evironment includes `PyTorch 2.5.1`, `PyTorch3D 0.7.8`, and `flash-attn 2.7
 python sample.py data_root=./demo/data
 ```
 This saves images of the input (unposed) parts and multiple generations for possible assemblies.
-We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. To disable rendering, use `visualizer.renderer=none`.
-To save the flow trajectory as a GIF animation, use `visualizer.save_trajectory=true`.
 
-More rendering options are available in [config/visualizer](config/visualizer/flow.yaml).
+- **Trajectory**: To save the flow trajectory as a GIF animation, use `visualizer.save_trajectory=true`.
 
-We support Euler, RK2 (default), and RK4 samplers for inference, please set `model.inference_sampler={euler, rk2, rk4}` accordingly.
+- **Renderer**: We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. To disable rendering, use `visualizer.renderer=none`. More rendering options are available in [config/visualizer](config/visualizer/flow.yaml).
+
+- **Sampler**: We support Euler, RK2 (default), and RK4 samplers for inference, set `model.inference_sampler={euler, rk2, rk4}` accordingly.
 
 **Overlap Prediction:** To visualize the overlap probabilities predicted by the encoder, please run:
 
