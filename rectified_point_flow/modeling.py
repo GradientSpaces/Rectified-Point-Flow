@@ -11,6 +11,7 @@ import torch.nn.functional as F
 
 from .eval.evaluator import Evaluator
 from .procrustes import fit_transformations
+from .sampler import get_sampler
 from .utils.checkpoint import get_rng_state, load_checkpoint_for_module, set_rng_state
 from .utils.logging import MetricsMeter, log_metrics_on_step, log_metrics_on_epoch
 from .utils.point_clouds import broadcast_batch_to_part, flatten_valid_parts
@@ -30,9 +31,9 @@ class RectifiedPointFlow(L.LightningModule):
         loss_type: str = "mse",
         timestep_sampling: str = "u-shaped",
         inference_sampling_steps: int = 20,
+        inference_sampler: str = "euler",
         n_generations: int = 1,
         pred_proc_fn: Callable | None = None,
-        sample_proc_fn: Callable | None = None,
         save_results: bool = False,
     ):
         super().__init__()
@@ -43,9 +44,9 @@ class RectifiedPointFlow(L.LightningModule):
         self.loss_type = loss_type
         self.timestep_sampling = timestep_sampling
         self.inference_sampling_steps = inference_sampling_steps
+        self.inference_sampler = inference_sampler
         self.n_generations = n_generations
         self.pred_proc_fn = pred_proc_fn
-        self.sample_proc_fn = sample_proc_fn
         self.save_results = save_results
 
         # Load checkpoints
@@ -225,6 +226,7 @@ class RectifiedPointFlow(L.LightningModule):
         pointclouds_pred = self.sample_rectified_flow(
             data_dict, output_dict["latent"]
         )
+        
         eval_results = self.evaluator.run(data_dict, pointclouds_pred)
         self.meter.add_metrics(
             dataset_names=data_dict['dataset_name'], **eval_results
@@ -287,7 +289,7 @@ class RectifiedPointFlow(L.LightningModule):
         x_1: torch.Tensor | None = None,
         return_tarjectory: bool = False,
     ) -> torch.Tensor | list[torch.Tensor]:
-        """Sample from rectified flow using Euler integration.
+        """Sample from rectified flow using configurable integration methods.
         
         Args:
             data_dict: Input data dictionary
@@ -299,47 +301,36 @@ class RectifiedPointFlow(L.LightningModule):
             (num_points, 3) if return_tarjectory == False
             (num_steps, num_points, 3) if return_tarjectory == True
         """
-        dt = 1.0 / self.inference_sampling_steps
-        device = self.device
-        
         points_per_part = data_dict["points_per_part"]
         part_valids = points_per_part != 0
         anchor_part = flatten_valid_parts(data_dict["anchor_part"], points_per_part)
         anchor_idx = anchor_part[latent['batch']]
         part_scale = flatten_valid_parts(data_dict["scale"], points_per_part)
 
-        x_0 = data_dict["pointclouds_gt"]
-        if x_1 is None:
-            x_1 = torch.randn_like(x_0)
-
-        x_0 = x_0.reshape(-1, 3)                         # (num_points, 3)
-        x_1 = x_1.reshape(-1, 3)                         # (num_points, 3)
-        x_t = x_1.clone()                                # (num_points, 3)
-        x_t[anchor_idx] = x_0[anchor_idx]                # (num_points, 3)
-
-        trajectory = []
-        for step in range(self.inference_sampling_steps):
-            t = 1 - step * dt
-            timesteps = torch.full((len(anchor_part),), t, device=device)
-            v_pred = self.flow_model(
-                x=x_t,
+        # Wraps the flow model with const parameters
+        def flow_model_fn(x: torch.Tensor, t: float) -> torch.Tensor:
+            timesteps = torch.full((len(anchor_part),), t, device=x.device)
+            return self.flow_model(
+                x=x,
                 timesteps=timesteps,
                 latent=latent,
                 part_valids=part_valids,
                 scale=part_scale,
                 anchor_part=anchor_part,
-            )                                            # (num_points, 3)
-            if self.sample_proc_fn is not None:
-                v_pred = self.sample_proc_fn(v_pred, x_t, x_1, x_0, t)
-            
-            x_t = x_t - dt * v_pred
-            x_t[anchor_idx] = x_0[anchor_idx]
-            if return_tarjectory:
-                trajectory.append(x_t.clone())
-    
-        if return_tarjectory:
-            return torch.stack(trajectory)                  # (num_steps, num_points, 3)
-        return x_t                                          # (num_points, 3)
+            )
+
+        x_0 = data_dict["pointclouds_gt"].reshape(-1, 3)
+        x_1 = torch.randn_like(x_0) if x_1 is None else x_1.reshape(-1, 3)
+        
+        result = get_sampler(self.inference_sampler)(
+            flow_model_fn=flow_model_fn,
+            x_1=x_1,
+            x_0=x_0,
+            anchor_idx=anchor_idx,
+            num_steps=self.inference_sampling_steps,
+            return_trajectory=return_tarjectory,
+        )
+        return result
 
     def on_validation_epoch_end(self):
         metrics = self.meter.compute_average()
@@ -402,6 +393,7 @@ if __name__ == "__main__":
         flow_model=flow_model,
         optimizer=torch.optim.AdamW,
         lr_scheduler=lr_scheduler,
+        inference_sampler="euler",  # Can be "euler", "rk2", or "rk4"
     )
 
     print(rectified_point_flow)
