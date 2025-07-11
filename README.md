@@ -73,6 +73,8 @@ To save the flow trajectory as a GIF animation, use `visualizer.save_trajectory=
 
 More rendering options are available in [config/visualizer](config/visualizer/flow.yaml).
 
+We support Euler, RK2 (default), and RK4 samplers for inference, please set `model.inference_sampler={euler, rk2, rk4}` accordingly.
+
 **Overlap Prediction:** To visualize the overlap probabilities predicted by the encoder, please run:
 
 ```bash
