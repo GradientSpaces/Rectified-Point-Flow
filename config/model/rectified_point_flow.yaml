@@ -19,5 +19,6 @@ lr_scheduler:
   gamma: 0.5
 
 timestep_sampling: "u_shaped"
-inference_sampling_steps: 50
+inference_sampler: "rk2"
+inference_sampling_steps: 20
 n_generations: 1
