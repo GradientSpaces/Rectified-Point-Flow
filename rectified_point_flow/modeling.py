@@ -96,6 +96,7 @@ class RectifiedPointFlow(L.LightningModule):
         logit_std: float = 1.0,
         mode_scale: float = 2.0,
         a: float = 4.0,
+        eps: float = 0.01,
     ):
         """Sample timesteps based on weighting scheme."""
         device = self.device
@@ -113,7 +114,10 @@ class RectifiedPointFlow(L.LightningModule):
             u = torch.rand(size=(batch_size,), device=device)
         else:
             raise ValueError(f"Invalid timestep sampling mode: {self.timestep_sampling}")
-        return u 
+        
+        # Clamp small t to reduce loss spikes
+        u = u.clamp(eps, 1.0)
+        return u
     
     def _encode(self, data_dict: dict):
         """Extract features from input data using FP16."""
@@ -197,6 +201,7 @@ class RectifiedPointFlow(L.LightningModule):
         """Compute rectified flow loss."""
         v_pred = output_dict["v_pred"]
         v_t = output_dict["v_t"]
+
         if self.loss_type == "mse":
             loss = F.mse_loss(v_pred, v_t, reduction="mean")
         elif self.loss_type == "l1":
@@ -307,7 +312,6 @@ class RectifiedPointFlow(L.LightningModule):
         anchor_idx = anchor_part[latent['batch']]
         part_scale = flatten_valid_parts(data_dict["scale"], points_per_part)
 
-        # Wraps the flow model with const parameters
         def flow_model_fn(x: torch.Tensor, t: float) -> torch.Tensor:
             timesteps = torch.full((len(anchor_part),), t, device=x.device)
             return self.flow_model(

@@ -164,8 +164,12 @@ class PointCloudDiT(nn.Module):
                 global_attn_max_seqlen=global_attn_max_seqlen,
             )                                                           # (n_points, embed_dim)
 
-        return self.final_mlp(x.float())                                # (n_points, out_dim)
-    
+        # Use float32 for better numerical stability
+        x = x.float()
+        with torch.amp.autocast(x.device.type, torch.float32):
+            out = self.final_mlp(x)                                     # (n_points, out_dim)
+        return out
+
 
 if __name__ == "__main__":
     model = PointCloudDiT(
