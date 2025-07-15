@@ -18,23 +18,24 @@ data_root/
     ├── data_split/
     │   ├── train.txt
     │   └── val.txt
-    ├── <object_name>/
-    │   ├── <fragment_name>/
-    │   │   ├── part_000.ply
-    │   │   ├── part_001.ply
+    ├── <dataset_name>/
+    │   ├── <object_name>/
+    │   │   ├── <fragmentation_name>/
+    │   │   │   ├── part_000.ply
+    │   │   │   ├── part_001.ply
+    │   │   │   └── ...
     │   │   └── ...
     │   └── ...
-    └── <object_name>/
-        └── ...
 ```
 
 - The `data_root` directory can contain multiple datasets.
+- The `<fragmentation_name>` represents a way to fragment an `<object_name>` into parts, under which `part_<idx>.ply` is a 0-based index indicating the part PLY file.
 - The `data_split/{train,val}.txt` files list fragment paths (one per line) for each split:
   ```xml
-  <dataset_name>/<object_name>/<fragment_name>
+  <dataset_name>/<object_name>/<fragmentation_name>
   ```
+- All PLY files should have the `vertices` field. The `vertex_normals` and `faces` fields are optional. If `faces` is empty, the part is treated as a pure point cloud.
 - Both binary and ascii PLY files are supported. 
-- All PLY files should have the vertices field. The vertex_normals and faces fields are optional. If faces are empty, the part is treated as a pure point cloud.
 - See the [demo/data](../demo/data) directory for a complete example.
 
 ### 2. HDF5 (Recommended)
@@ -50,7 +51,7 @@ data_root/
     │       └── val                   : list[str]
     └── <dataset_name>/
         ├── <object_name>/
-        │   └── <fragment_name>/
+        │   └── <fragmentation_name>/
         │       └── <part_idx>/
         │           ├── vertices      : float32[n, 3]
         │           ├── normals       : float32[n, 3], optional
@@ -58,14 +59,14 @@ data_root/
         └── ...
 ```
 
-- `<dataset_name>`, `<object_name>`, and `<fragment_name>` can be any string.
+- `<dataset_name>`, `<object_name>`, and `<fragmentation_name>` can be any string.
 - `<part_idx>` is a 0-based index indicating the part number.
 - The `vertices` field is required. The `normals` and `faces` fields are optional. If `faces` is empty, the part is treated as a pure point cloud.
 - The `data_split/<dataset_name>/{train,val}` groups contain lists of fragment keys:
   ```xml
-  <dataset_name>/<object_name>/<fragment_name>
+  <dataset_name>/<object_name>/<fragmentation_name>
   ```
-- We **stronly recommend** using HDF5 for training due to efficiency in multi-process reading and reduced file count in the storage.
+- We **strongly recommend** using HDF5 for training due to efficiency in multi-process reading and reduced file count in the storage.
 
 ## Format Conversion
 
