@@ -165,9 +165,8 @@ class PointCloudDiT(nn.Module):
             )                                                           # (n_points, embed_dim)
 
         # Use float32 for better numerical stability
-        x = x.float()
-        with torch.amp.autocast(x.device.type, torch.float32):
-            out = self.final_mlp(x)                                     # (n_points, out_dim)
+        with torch.amp.autocast(enabled=False):
+            out = self.final_mlp(x.float())                             # (n_points, out_dim)
         return out
 
 

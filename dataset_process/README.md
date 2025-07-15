@@ -29,7 +29,7 @@ data_root/
 ```
 
 - The `data_root` directory can contain multiple datasets.
-- `<fragmentation_name>` represents a way to fragment an `<object_name>` into parts, under which `part_<idx>.ply` is a 0-based index indicating the part PLY file.
+- The `<fragmentation_name>` represents a way to fragment an `<object_name>` into parts, under which `part_<idx>.ply` is a 0-based index indicating the part PLY file.
 - The `data_split/{train,val}.txt` files list fragment paths (one per line) for each split:
   ```xml
   <dataset_name>/<object_name>/<fragmentation_name>
@@ -66,7 +66,7 @@ data_root/
   ```xml
   <dataset_name>/<object_name>/<fragmentation_name>
   ```
-- We **stronly recommend** using HDF5 for training due to efficiency in multi-process reading and reduced file count in the storage.
+- We **strongly recommend** using HDF5 for training due to efficiency in multi-process reading and reduced file count in the storage.
 
 ## Format Conversion
 
