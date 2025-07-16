@@ -283,6 +283,7 @@ class RectifiedPointFlow(L.LightningModule):
             'translations_pred': n_translations_pred,
         }
     
+    @torch.inference_mode()
     def sample_rectified_flow(
         self, 
         data_dict: dict,
