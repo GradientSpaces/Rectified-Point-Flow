@@ -18,7 +18,7 @@ callbacks:
     auto_insert_metric_name: False
     save_last: True
     save_top_k: 1
-    monitor: val/overall/object_cd
+    monitor: val/overall/object_chamfer
     mode: min
     every_n_epochs: 1
     save_on_train_epoch_end: True
