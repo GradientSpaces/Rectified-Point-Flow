@@ -197,17 +197,17 @@ class FlowVisualizationCallback(VisualizationCallback):
         points_per_part = batch["points_per_part"]                            # (bs, max_parts)
         B, _ = points_per_part.shape
         part_ids = ppp_to_ids(points_per_part)                                # (bs, N)
-        pts = batch["pointclouds"].reshape(B, -1, 3)                 # (bs, N, 3)
-        pts_gt = batch["pointclouds_gt"].reshape(B, -1, 3)                    # (bs, N, 3)
+        pts = batch["pointclouds"].view(B, -1, 3)                             # (bs, N, 3)
+        pts_gt = batch["pointclouds_gt"].view(B, -1, 3)                       # (bs, N, 3)
         
         # K generations
         trajectories_list = outputs['trajectories']                           # (K, num_steps, num_points, 3)
         K = len(trajectories_list)
-        pointclouds_pred_list = [traj[-1].reshape(B, -1, 3) for traj in trajectories_list]
+        pointclouds_pred_list = [traj[-1].view(B, -1, 3) for traj in trajectories_list]
 
         if self.scale_to_original_size:
             scale = batch["scale"][:, 0]                                      # (bs,)
-            pts = pts * scale[:, None, None]                # (bs, N, 3)
+            pts = pts * scale[:, None, None]                                  # (bs, N, 3)
             pointclouds_pred_list = [pred * scale[:, None, None] for pred in pointclouds_pred_list]
 
         for i in range(B):

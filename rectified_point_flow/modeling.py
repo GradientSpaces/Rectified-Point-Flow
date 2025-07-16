@@ -168,9 +168,9 @@ class RectifiedPointFlow(L.LightningModule):
         anchor_part = flatten_valid_parts(anchor_part, points_per_part)
         part_scale = flatten_valid_parts(scale, points_per_part)
         anchor_idx = anchor_part[latent['batch']]
-        x_0 = x_0.reshape(-1, 3)
-        x_t = x_t.reshape(-1, 3)
-        v_t = v_t.reshape(-1, 3)
+        x_0 = x_0.view(-1, 3)
+        x_t = x_t.view(-1, 3)
+        v_t = v_t.view(-1, 3)
         x_t[anchor_idx] = x_0[anchor_idx]
         v_t[anchor_idx] = 0.0
         
@@ -232,7 +232,7 @@ class RectifiedPointFlow(L.LightningModule):
 
         # Evaluate the final predicted point clouds
         eval_results = self.evaluator.run(data_dict, pointclouds_pred)
-        self.meter.add_metrics(dataset_names=data_dict['dataset_name'], **eval_results)
+        self.meter.add_metrics(dataset_names=data_dict["dataset_name"], **eval_results)
         return loss_dict["loss"]
 
     def test_step(self, data_dict: dict, batch_idx: int, dataloader_idx: int = 0):
@@ -320,8 +320,9 @@ class RectifiedPointFlow(L.LightningModule):
                 anchor_part=anchor_part,
             )
 
-        x_0 = data_dict["pointclouds_gt"].reshape(-1, 3)
-        x_1 = torch.randn_like(x_0) if x_1 is None else x_1.reshape(-1, 3)
+        x_0 = data_dict["pointclouds_gt"].view(-1, 3)
+        x_1 = torch.randn_like(x_0) if x_1 is None else x_1.view(-1, 3)
+        
         result = get_sampler(self.inference_sampler)(
             flow_model_fn=_flow_model_fn,
             x_1=x_1,
