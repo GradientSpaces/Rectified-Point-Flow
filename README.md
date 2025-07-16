@@ -129,6 +129,8 @@ python train.py --config-name "RPF_base_main" \
 - `model.encoder_ckpt`: Path to pretrained encoder checkpoint.
 - `data.batch_size`: Batch size per GPU. Defaults to 40 for 80GB GPU.
 
+**Note:** RPF's main training and inference logics are in [rectified_point_flow/modeling.py](rectified_point_flow/modeling.py).
+
 
 ## 📚 More Details
 
