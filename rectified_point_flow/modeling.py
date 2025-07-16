@@ -312,7 +312,7 @@ class RectifiedPointFlow(L.LightningModule):
         anchor_idx = anchor_part[latent['batch']]
         part_scale = flatten_valid_parts(data_dict["scale"], points_per_part)
 
-        def flow_model_fn(x: torch.Tensor, t: float) -> torch.Tensor:
+        def _flow_model_fn(x: torch.Tensor, t: float) -> torch.Tensor:
             timesteps = torch.full((len(anchor_part),), t, device=x.device)
             return self.flow_model(
                 x=x,
@@ -325,9 +325,8 @@ class RectifiedPointFlow(L.LightningModule):
 
         x_0 = data_dict["pointclouds_gt"].reshape(-1, 3)
         x_1 = torch.randn_like(x_0) if x_1 is None else x_1.reshape(-1, 3)
-        
         result = get_sampler(self.inference_sampler)(
-            flow_model_fn=flow_model_fn,
+            flow_model_fn=_flow_model_fn,
             x_1=x_1,
             x_0=x_0,
             anchor_idx=anchor_idx,
