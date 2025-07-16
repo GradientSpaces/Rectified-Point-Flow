@@ -15,6 +15,7 @@
 
 
 ## 🔔 News
+- [July 15, 2025] Improve training stability and fix bugs.
 - [July 9, 2025] Released training codes.
 - [July 1, 2025] Released model checkpoints and inference codes. 
 
