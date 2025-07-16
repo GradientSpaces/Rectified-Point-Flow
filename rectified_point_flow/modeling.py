@@ -54,7 +54,7 @@ class RectifiedPointFlow(L.LightningModule):
             load_checkpoint_for_module(
                 self.feature_extractor,
                 encoder_ckpt,
-                prefix_to_remove="feature_extractor.",
+                keys_to_substitute={"feature_extractor.": ""},
                 strict=False,
             )
         if flow_model_ckpt is not None:
@@ -228,14 +228,11 @@ class RectifiedPointFlow(L.LightningModule):
         """Validation step."""
         output_dict = self.forward(data_dict)
         loss_dict = self.loss(output_dict)
-        pointclouds_pred = self.sample_rectified_flow(
-            data_dict, output_dict["latent"]
-        )
-        
+        pointclouds_pred = self.sample_rectified_flow(data_dict, output_dict["latent"])
+
+        # Evaluate the final predicted point clouds
         eval_results = self.evaluator.run(data_dict, pointclouds_pred)
-        self.meter.add_metrics(
-            dataset_names=data_dict['dataset_name'], **eval_results
-        )
+        self.meter.add_metrics(dataset_names=data_dict['dataset_name'], **eval_results)
         return loss_dict["loss"]
 
     def test_step(self, data_dict: dict, batch_idx: int, dataloader_idx: int = 0):
@@ -245,11 +242,10 @@ class RectifiedPointFlow(L.LightningModule):
         n_rotations_pred = []
         n_translations_pred = []
         n_eval_results = []
-        B, _, _ = data_dict["pointclouds"].shape
 
         for gen_idx in range(self.n_generations):
-            trajectory = self.sample_rectified_flow(data_dict, latent, return_tarjectory=True)
-            pointclouds_pred = trajectory[-1].view(B, -1, 3).detach()
+            trajs = self.sample_rectified_flow(data_dict, latent, return_tarjectory=True)
+            pointclouds_pred = trajs[-1]      
             rotations_pred, translations_pred = fit_transformations(
                 data_dict["pointclouds"], pointclouds_pred, data_dict["points_per_part"]
             )
@@ -261,7 +257,7 @@ class RectifiedPointFlow(L.LightningModule):
                 save_results=self.save_results, 
                 generation_idx=gen_idx,
             )
-            n_trajectories.append(trajectory)
+            n_trajectories.append(trajs)
             n_rotations_pred.append(rotations_pred)
             n_translations_pred.append(translations_pred)
             n_eval_results.append(eval_results)

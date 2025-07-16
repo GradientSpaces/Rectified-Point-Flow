@@ -45,8 +45,8 @@ def fit_transformations(
     """Fit per-part rigid transformations between two multi-part point clouds.
 
     Args:
-        source_pcds (torch.Tensor): Source point clouds of shape (B, N, 3).
-        target_pcds (torch.Tensor): Target point clouds of shape (B, N, 3).
+        source_pcds (torch.Tensor): Source point clouds of shape (B, N, 3) or (B*N, 3).
+        target_pcds (torch.Tensor): Target point clouds of shape (B, N, 3) or (B*N, 3).
         points_per_part (torch.Tensor): Points per part of shape (B, P) where P is the maximum number of parts.
 
     Returns:
@@ -56,6 +56,9 @@ def fit_transformations(
 
     device = source_pcds.device
     bs, n_parts = points_per_part.shape
+
+    source_pcds = source_pcds.view(bs, -1, 3)
+    target_pcds = target_pcds.view(bs, -1, 3)
     parts_source = split_parts(source_pcds, points_per_part)
     parts_target = split_parts(target_pcds, points_per_part)
 
