@@ -39,7 +39,8 @@ def load_checkpoint_for_module(
     if prefix_to_remove is not None:
         state_dict = {
             k.replace(prefix_to_remove, ""): v 
-            for k, v in state_dict.items() 
+            for k, v in state_dict.items()
+            if k.startswith(prefix_to_remove)
         }
     
     # Handle keys substitution

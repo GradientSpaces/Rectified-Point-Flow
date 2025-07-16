@@ -18,8 +18,8 @@ class Evaluator:
         self,
         data: Dict[str, Any],
         pointclouds_pred: torch.Tensor,
-        rotations_pred: torch.Tensor,
-        translations_pred: torch.Tensor,
+        rotations_pred: torch.Tensor | None = None,
+        translations_pred: torch.Tensor | None = None,
     ) -> Dict[str, torch.Tensor]:
         """Compute evaluation metrics."""
         pts = data["pointclouds"]                       # (B, N, 3)
@@ -30,28 +30,33 @@ class Evaluator:
         
         # Rescale to original scale
         B, _, _ = pts_gt.shape
+        pointclouds_pred = pointclouds_pred.view(B, -1, 3)
         pts_gt_rescaled = pts_gt * scale.view(B, 1, 1)
         pts_pred_rescaled = pointclouds_pred * scale.view(B, 1, 1)
 
         object_cd = compute_object_cd(pts_gt_rescaled, pts_pred_rescaled)
         part_acc, matched_parts = compute_part_acc(pts_gt_rescaled, pts_pred_rescaled, points_per_part)
-        rot_errors, trans_errors = compute_transform_errors(
-            pts, pts_gt, rotations_pred, translations_pred, points_per_part, anchor_part, matched_parts, scale,
-        )
-
-        rot_recalls = self._recall_at_thresholds(rot_errors, [5, 10])
-        trans_recalls = self._recall_at_thresholds(trans_errors, [0.01, 0.05])
-
-        return {
+        metrics = {
             "part_accuracy": part_acc,
             "object_chamfer": object_cd,
-            "rotation_error": rot_errors,
-            "translation_error": trans_errors,
-            "recall_at_5deg": rot_recalls[0],
-            "recall_at_10deg": rot_recalls[1],
-            "recall_at_1cm": trans_recalls[0],
-            "recall_at_5cm": trans_recalls[1],
         }
+        
+        if rotations_pred is not None and translations_pred is not None:
+            rot_errors, trans_errors = compute_transform_errors(
+                pts, pts_gt, rotations_pred, translations_pred, points_per_part, anchor_part, matched_parts, scale,
+            )
+            rot_recalls = self._recall_at_thresholds(rot_errors, [5, 10])
+            trans_recalls = self._recall_at_thresholds(trans_errors, [0.01, 0.05])
+            metrics.update({
+                "rotation_error": rot_errors,
+                "translation_error": trans_errors,
+                "recall_at_5deg": rot_recalls[0],
+                "recall_at_10deg": rot_recalls[1],
+                "recall_at_1cm": trans_recalls[0],
+                "recall_at_5cm": trans_recalls[1],
+            })
+
+        return metrics
     
     @staticmethod
     def _recall_at_thresholds(metrics: torch.Tensor, thresholds: list[float]) -> list[torch.Tensor]:
@@ -92,8 +97,8 @@ class Evaluator:
         self,
         data: Dict[str, Any],
         pointclouds_pred: torch.Tensor,
-        rotations_pred: torch.Tensor,
-        translations_pred: torch.Tensor,
+        rotations_pred: torch.Tensor | None = None,
+        translations_pred: torch.Tensor | None = None,
         save_results: bool = False,
         generation_idx: int = 0,
     ) -> Dict[str, torch.Tensor]:
@@ -109,16 +114,20 @@ class Evaluator:
                 index (B,): Object indices.
                 num_parts (B,): Number of parts.
 
-            pointclouds_pred (B, N, 3): Model output samples.
-            rotations_pred (B, P, 3, 3): Estimated rotation matrices.
-            translations_pred (B, P, 3): Estimated translation vectors.
+            pointclouds_pred (B, N, 3) or (B*N, 3): Model output samples.
+            rotations_pred (B, P, 3, 3), optional: Estimated rotation matrices.
+            translations_pred (B, P, 3), optional: Estimated translation vectors.
             save_results (bool): If True, save each result to log_dir/results.
             generation_idx (int): The index of the generation (mainly for best-of-n generations).
 
         Returns:
             A dictionary with:
+
                 object_chamfer_dist (B,): Object Chamfer distance in meters.
                 part_accuracy (B,): Part accuracy.
+
+            If rotations_pred and translations_pred are provided, also return:
+
                 rotation_error (B,): Rotation errors in degrees.
                 translation_error (B,): Translation errors in meters.
                 recall_at_5deg (B,): Recall at 5 degrees.

@@ -42,9 +42,9 @@ def flow_sampler(
         t = 1 - step * dt
         x_t = step_fn(x_t, t, dt, flow_model_fn, anchor_idx, x_0)
         if return_trajectory:
-            trajectory[step] = x_t.clone()
+            trajectory[step] = x_t.detach().clone()
 
-    return trajectory if return_trajectory else x_t
+    return trajectory if return_trajectory else x_t.detach()
 
 
 # Integration step functions
