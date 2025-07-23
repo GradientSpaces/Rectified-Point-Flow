@@ -26,7 +26,7 @@ class Evaluator:
         pts_gt = data["pointclouds_gt"]                 # (B, N, 3)
         points_per_part = data["points_per_part"]       # (B, P)
         anchor_parts = data["anchor_parts"]             # (B, P)
-        scales = data["scales"]                          # (B,)
+        scales = data["scales"]                         # (B,)
         
         # Rescale to original scales
         B, _, _ = pts_gt.shape

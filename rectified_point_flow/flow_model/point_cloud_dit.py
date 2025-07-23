@@ -147,7 +147,7 @@ class PointCloudDiT(nn.Module):
 
         # Prepare attention metadata
         part_seqlen = torch.bincount(latent["batch"])                    # (n_valid_parts, )
-        max_seqlen = part_seqlen.max()                           
+        max_seqlen = part_seqlen.max().item()                            # .item() is used to allow torch.compile
         part_cu_seqlens = nn.functional.pad(torch.cumsum(part_seqlen, 0), (1, 0))
         part_cu_seqlens = part_cu_seqlens.to(torch.int32)                # (n_valid_parts + 1, )                                                        # (bs, max_parts)
 
@@ -155,8 +155,8 @@ class PointCloudDiT(nn.Module):
         for layer in self.transformer_layers:
             x = layer(x, timesteps, part_cu_seqlens, max_seqlen)         # (B, N, dim)                  
 
-        # Use float32 for better numerical stability
-        with torch.amp.autocast(x.device.type, enabled=True):
+        # Final MLP, use float32 for better numerical stability
+        with torch.amp.autocast(x.device.type, enabled=False):
             out = self.final_mlp(x.float())                              # (B, N, out_dim)
         return out
 

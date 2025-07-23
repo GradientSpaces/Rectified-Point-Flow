@@ -7,6 +7,10 @@ from diffusers.models.attention import FeedForward
 
 from .norm import AdaptiveLayerNorm, MultiHeadRMSNorm
 
+# To resolve a conflict with flash-attn's higher-order graph and DDP.
+# DDP will be working normally, just skipped by torch._dynamo.
+torch._dynamo.config.optimize_ddp=False
+
 
 class DiTLayer(nn.Module):
     """Diffusion Transformer layer for Rectified Point Flow.
@@ -119,7 +123,7 @@ class DiTLayer(nn.Module):
         out = out.view(B, N, self.dim)                                   # (B, N, embed_dim)
         return self.global_out_proj(out)
 
-    # @torch.compile
+    @torch.compile
     def forward(
         self,
         hidden_states: torch.Tensor,

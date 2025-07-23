@@ -15,11 +15,14 @@
 
 
 ## 🔔 News
-- [July 25, 2025] **(Version 1.0)** Improve training speed (9-12% faster) and stability; fix bugs in configs, RK2 sampler, and validation. Please kindly update the code to this version.
+- [July 25, 2025] **Version 1.0**: We strongly recommend updating to this version, which includes:
+  - Improved model speed (9-12% faster) and training stability.
+  - Fixed bugs in configs, RK2 sampler, and validation.
+  - Simplified point cloud packing and shaping.
 
-- [July 9, 2025] **(Version 0.1)**  Released training codes.
+- [July 9, 2025] **Version 0.1**: Release training codes.
 
-- [July 1, 2025] Released model checkpoints and inference codes. 
+- [July 1, 2025] Initial release of the model checkpoints and inference codes.
 
 ## Overview
 
