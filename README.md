@@ -160,7 +160,7 @@ The model is trained on a combination of datasets. Please be aware that datasets
 | [Objverse](https://objaverse.allenai.org/) | Overlap prediction | Segmented by [PartField](https://github.com/nv-tlabs/PartField) | [3, 12] | [ODC-BY 1.0](https://opendatacommons.org/licenses/by/1-0/) |
 </details>
 
-You can [download](https://storage.googleapis.com/rectified-point-flow-data/datasets/objaverse_38k.hdf5) our processed Objverse v1 dataset, which contains ~38k objects segmented by [PartField](https://github.com/nv-tlabs/PartField). We will release all other processed data files soon.
+You can [download (179GB)](https://storage.googleapis.com/rectified-point-flow-data/datasets/objaverse_38k.hdf5) our processed Objaverse v1 dataset, which contains ~38k objects segmented by [PartField](https://github.com/nv-tlabs/PartField). We will release all other processed data files soon.
 
 ### Custom Datasets
 
