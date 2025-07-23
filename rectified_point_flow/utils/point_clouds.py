@@ -51,37 +51,6 @@ def ppp_to_ids(points_per_part: torch.Tensor) -> torch.Tensor:
     return result
 
 
-def broadcast_part_to_points(x: torch.Tensor, points_per_part: torch.Tensor) -> torch.Tensor:
-    """Broadcast per-part information to per-point information.
-    
-    Args:
-        x: Tensor of shape (valid_P, ...), where valid_P is the number of valid parts.
-        points_per_part: Number of points per part of shape (B, P).
-        
-    Returns:
-        Tensor of shape (total_points, ...).
-    """
-    part_valids = points_per_part != 0                          # (B, P)
-    points_per_valid_part = points_per_part[part_valids]        # (valid_P,)
-    return x.repeat_interleave(points_per_valid_part, dim=0)
-
-
-def broadcast_batch_to_part(x: torch.Tensor, points_per_part: torch.Tensor) -> torch.Tensor:
-    """Broadcast per-batch information to per-part information.
-    
-    Args:
-        x: Tensor of shape (B, ...).
-        points_per_part: Number of points per part of shape (B, P).
-
-    Returns:
-        Tensor of shape (valid_P, ...).
-    """
-    B, P = points_per_part.shape
-    part_valids = points_per_part != 0                         # (B, P)
-    expanded = x.unsqueeze(1).expand(B, P, *x.shape[1:])
-    return expanded[part_valids]
-
-
 def flatten_valid_parts(x: torch.Tensor, points_per_part: torch.Tensor) -> torch.Tensor:
     """Flatten tensor by selecting only valid parts.
     

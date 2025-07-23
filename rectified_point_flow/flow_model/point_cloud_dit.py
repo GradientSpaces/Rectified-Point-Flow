@@ -24,7 +24,9 @@ class PointCloudDiT(nn.Module):
         num_layers: int,
         num_heads: int,
         dropout_rate: float = 0.0,
-        attn_dtype: torch.dtype = torch.float16,
+        softcap: float = 0.0,
+        qk_norm: bool = True,
+        attn_dtype: str = "float16",
         final_mlp_act: nn.Module = nn.SiLU,
     ):
         """
@@ -35,6 +37,8 @@ class PointCloudDiT(nn.Module):
             num_layers: Number of transformer layers (e.g., 6). 
             num_heads: Number of attention heads (e.g., 8).
             dropout_rate: Dropout rate, default 0.0.
+            softcap: Soft cap for attention scores, default 0.0.
+            qk_norm: Whether to use query-key normalization, default True.
             attn_dtype: Attention data type, default float16.
             final_mlp_act: Activation function for the final MLP, default SiLU.
         """
@@ -45,8 +49,17 @@ class PointCloudDiT(nn.Module):
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
-        self.attn_dtype = attn_dtype
         self.final_mlp_act = final_mlp_act
+
+        # Parse attn_dtype
+        if attn_dtype == "float16" or attn_dtype == "fp16":
+            self.attn_dtype = torch.float16
+        elif attn_dtype == "bfloat16" or attn_dtype == "bf16":
+            self.attn_dtype = torch.bfloat16
+        elif attn_dtype == "float32" or attn_dtype == "fp32":
+            self.attn_dtype = torch.float32
+        else:
+            raise ValueError(f"Unsupported attn_dtype: {attn_dtype}")
 
         # Reference part embedding for distinguishing anchor vs. moving parts
         self.anchor_part_emb = nn.Embedding(2, self.embed_dim)
@@ -65,6 +78,8 @@ class PointCloudDiT(nn.Module):
                 num_attention_heads=self.num_heads,
                 attention_head_dim=self.embed_dim // self.num_heads,
                 dropout=self.dropout_rate,
+                softcap=softcap,
+                qk_norm=qk_norm,
                 attn_dtype=self.attn_dtype,
             )
             for _ in range(self.num_layers)
@@ -81,92 +96,68 @@ class PointCloudDiT(nn.Module):
 
     def _add_anchor_embedding(
         self,
-        x_emb: torch.Tensor,
-        anchor_part: torch.Tensor,
-        latent: dict,
+        x: torch.Tensor,
+        anchor_indices: torch.Tensor,
     ) -> torch.Tensor:
         """Add anchor part embeddings to distinguish anchor from moving parts.
         
         Args:
-            x_emb (n_points, embed_dim): Point cloud features.
-            anchor_part (n_valid_parts, ): Boolean tensor indicating anchor parts.
-            latent: PointTransformer's Point instance of conditional point cloud.
+            x (B, N, dim): Input point cloud features.
+            anchor_indices (B, N): bool tensor, True => anchor parts.
             
         Returns:
-            (n_points, embed_dim) Point cloud features with anchor part information added.
+            (B, N, dim) Point cloud features with anchor part information added.
         """
         # anchor_part_emb.weight[0] for non-anchor part
         # anchor_part_emb.weight[1] for anchor part
-        anchor_part_broadcasted = anchor_part[latent["batch"]]          # (n_points,)
-        anchor_part_emb = self.anchor_part_emb.weight[0].repeat(
-            anchor_part_broadcasted.shape[0], 1
-        )                                                               # (n_points, embed_dim)
-        anchor_part_emb[anchor_part_broadcasted.to(torch.bool)] = self.anchor_part_emb.weight[1]  # (n_points, embed_dim)
-        x_emb = x_emb + anchor_part_emb
-        return x_emb
+        B, N = anchor_indices.shape
+        anchor_part_emb = self.anchor_part_emb.weight[0].repeat(B, N, 1)
+        anchor_part_emb[anchor_indices] = self.anchor_part_emb.weight[1]
+        x = x + anchor_part_emb
+        return x
 
     def forward(
         self,
         x: torch.Tensor,
         timesteps: torch.Tensor,
         latent: dict,
-        part_valids: torch.Tensor,
-        scale: torch.Tensor,
-        anchor_part: torch.Tensor,
+        scales: torch.Tensor,
+        anchor_indices: torch.Tensor,
     ) -> dict:
         """Forward pass through the PointCloudDiT model.
         
         Args:
-            x (n_points, 3): Noise point coordinates.
-            timesteps (n_valid_parts, ): Float tensor of timesteps.
+            x (B, N, 3): Noise point coordinates at timestep t.
+            timesteps (B, ): Timestep values.
             latent: PointTransformer's Point instance of conditional point cloud:
                 - "coord" (n_points, 3): Point coordinates
                 - "normal" (n_points, 3): Point normals
                 - "feat" (n_points, in_dim): Point features  
                 - "batch" (n_points, ): Integer tensor of batch indices.
-            part_valids (bs, max_parts): bool tensor. True => valid parts.
-            scale (n_valid_parts, ): float tensor of part scale factor.
-            anchor_part (n_valid_parts, ): bool tensor, True => anchor parts.
+            scales (B, ): Scale factor for the point cloud.
+            anchor_indices (B, N): bool tensor, True => anchor parts.
             
         Returns:
-            Tensor of shape (n_points, out_dim)
+            Tensor of shape (B, N, out_dim) representing the predicted velocity field.
         """
 
         # Encoding
-        x = self.encoding_manager(x, latent, scale)                     # (n_points, embed_dim)
-        x = self._add_anchor_embedding(x, anchor_part, latent)          # (n_points, embed_dim)
-        
+        x = self.encoding_manager(x, latent, scales)                     # (B, N, dim)
+        x = self._add_anchor_embedding(x, anchor_indices)                # (B, N, dim)
+
         # Prepare attention metadata
-        self_attn_seqlen = torch.bincount(latent["batch"])              # (n_valid_parts, )
-        self_attn_max_seqlen = self_attn_seqlen.max()                   # (1)
-        self_attn_cu_seqlens = nn.functional.pad(
-            torch.cumsum(self_attn_seqlen, 0), (1, 0)
-        ).to(torch.int32)                                               # (n_valid_parts + 1, )
-        points_per_part = torch.zeros_like(
-            part_valids, dtype=self_attn_seqlen.dtype
-        )                                                               # (bs, max_parts)
-        points_per_part[part_valids] = self_attn_seqlen                 # (bs, max_parts)
-        global_attn_seqlen = points_per_part.sum(1)                     # (bs, )
-        global_attn_max_seqlen = global_attn_seqlen.max()               # (1)
-        global_attn_cu_seqlens = nn.functional.pad(
-            torch.cumsum(global_attn_seqlen, 0), (1, 0)
-        ).to(torch.int32)                                               # (bs + 1, )
+        part_seqlen = torch.bincount(latent["batch"])                    # (n_valid_parts, )
+        max_seqlen = part_seqlen.max().item()                            # .item() is used to allow torch.compile
+        part_cu_seqlens = nn.functional.pad(torch.cumsum(part_seqlen, 0), (1, 0))
+        part_cu_seqlens = part_cu_seqlens.to(torch.int32)                # (n_valid_parts + 1, )                                                        # (bs, max_parts)
 
         # Transformer layers
         for layer in self.transformer_layers:
-            x = layer(
-                hidden_states=x,
-                timestep=timesteps,
-                batch=latent["batch"],
-                self_attn_cu_seqlens=self_attn_cu_seqlens,
-                self_attn_max_seqlen=self_attn_max_seqlen,
-                global_attn_cu_seqlens=global_attn_cu_seqlens,
-                global_attn_max_seqlen=global_attn_max_seqlen,
-            )                                                           # (n_points, embed_dim)
+            x = layer(x, timesteps, part_cu_seqlens, max_seqlen)         # (B, N, dim)                  
 
-        # Use float32 for better numerical stability
+        # Final MLP, use float32 for better numerical stability
         with torch.amp.autocast(x.device.type, enabled=False):
-            out = self.final_mlp(x.float())                             # (n_points, out_dim)
+            out = self.final_mlp(x.float())                              # (B, N, out_dim)
         return out
 
 

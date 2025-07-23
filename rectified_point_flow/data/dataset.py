@@ -98,8 +98,9 @@ class PointCloudDataset(Dataset):
             - rotations (P, 3, 3) float32: Rotation matrices.
             - translations (P, 3) float32: Translation vectors.
             - points_per_part (P) int64: Number of points per part.
-            - scale (P) float32: Scale of the point clouds.
-            - anchor_part (P) bool: Whether the part is an anchor part.
+            - scales (1, ) float32: Scale of the point clouds.
+            - anchor_parts (P) bool: Boolean array indicating anchor parts.
+            - anchor_indices (N, ) bool: Boolean array indicating anchor points.
             - init_rotation (3, 3) float32: Initial rotation matrix of the pointclouds_gt, used for recovering the original data.
 
         Note:
@@ -323,7 +324,6 @@ class PointCloudDataset(Dataset):
         pts_per_part = pad_data(counts, self.max_parts)
         rots = pad_data(np.stack(rots), self.max_parts)
         trans = pad_data(np.stack(trans), self.max_parts)
-        scale = pad_data(np.array([scale] * n_parts), self.max_parts)
 
         # Use the largest part as the anchor part
         anchor = np.zeros(self.max_parts, bool)
@@ -347,6 +347,13 @@ class PointCloudDataset(Dataset):
                 rots[extra_idx] = np.eye(3)
                 trans[extra_idx] = np.zeros(3)
 
+        # Broadcast anchor part to points
+        anchor_indices = np.zeros(self.num_points_to_sample, bool)
+        for i in range(n_parts):
+            if anchor[i]:
+                st, ed = offsets[i], offsets[i + 1]
+                anchor_indices[st:ed] = True
+
         results = {}
         for key in ["index", "name", "overlap_threshold"]:
             results[key] = data[key]
@@ -360,8 +367,9 @@ class PointCloudDataset(Dataset):
         results["rotations"] = rots.astype(np.float32)
         results["translations"] = trans.astype(np.float32)
         results["points_per_part"] = pts_per_part.astype(np.int64)
-        results["scale"] = scale.astype(np.float32)
-        results["anchor_part"] = anchor.astype(bool)
+        results["scales"] = np.array(scale, dtype=np.float32)
+        results["anchor_parts"] = anchor.astype(bool)
+        results["anchor_indices"] = anchor_indices.astype(bool)
         results["init_rotation"] = init_rot.astype(np.float32)
 
         return results

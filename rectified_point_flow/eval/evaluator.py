@@ -25,14 +25,14 @@ class Evaluator:
         pts = data["pointclouds"]                       # (B, N, 3)
         pts_gt = data["pointclouds_gt"]                 # (B, N, 3)
         points_per_part = data["points_per_part"]       # (B, P)
-        anchor_part = data["anchor_part"]               # (B, P)
-        scale = data["scale"][:, 0]                     # (B,)
+        anchor_parts = data["anchor_parts"]             # (B, P)
+        scales = data["scales"]                         # (B,)
         
-        # Rescale to original scale
+        # Rescale to original scales
         B, _, _ = pts_gt.shape
         pointclouds_pred = pointclouds_pred.view(B, -1, 3)
-        pts_gt_rescaled = pts_gt * scale.view(B, 1, 1)
-        pts_pred_rescaled = pointclouds_pred * scale.view(B, 1, 1)
+        pts_gt_rescaled = pts_gt * scales.view(B, 1, 1)
+        pts_pred_rescaled = pointclouds_pred * scales.view(B, 1, 1)
 
         object_cd = compute_object_cd(pts_gt_rescaled, pts_pred_rescaled)
         part_acc, matched_parts = compute_part_acc(pts_gt_rescaled, pts_pred_rescaled, points_per_part)
@@ -43,7 +43,7 @@ class Evaluator:
         
         if rotations_pred is not None and translations_pred is not None:
             rot_errors, trans_errors = compute_transform_errors(
-                pts, pts_gt, rotations_pred, translations_pred, points_per_part, anchor_part, matched_parts, scale,
+                pts, pts_gt, rotations_pred, translations_pred, points_per_part, anchor_parts, matched_parts, scales,
             )
             rot_recalls = self._recall_at_thresholds(rot_errors, [5, 10])
             trans_recalls = self._recall_at_thresholds(trans_errors, [0.01, 0.05])
@@ -84,7 +84,7 @@ class Evaluator:
             "dataset": dataset_name,
             "num_parts": int(data["num_parts"][idx]),
             "generation_idx": generation_idx,
-            "scale": float(data["scale"][idx, 0]),
+            "scales": float(data["scales"][idx]),
         }
         entry.update({k: float(v[idx]) for k, v in metrics.items()})
 
@@ -107,7 +107,7 @@ class Evaluator:
         Args:
             data: Input data dictionary, containing:
                 pointclouds_gt (B, N, 3): Ground truth point clouds.
-                scale (B,): Scale factors.
+                scales (B,): scales factors.
                 points_per_part (B, P): Points per part.
                 name (B,): Object names.
                 dataset_name (B,): Dataset names.

@@ -34,46 +34,38 @@ class MultiHeadRMSNorm(nn.Module):
 class AdaptiveLayerNorm(nn.Module):
     """Adaptive layer normalization with timestep conditioning."""
 
-    def __init__(self, emb_dim: int, act_fn: nn.Module = nn.SiLU):
+    def __init__(
+        self, dim: int, act_fn: nn.Module = nn.SiLU, num_channels: int = 256
+    ):
         """Initialize the adaptive layer normalization.
         
         Args:
-            emb_dim (int): Dimension of embeddings.
+            dim (int): Dimension of embeddings.
             act_fn (nn.Module): Activation function. Default: nn.SiLU.
+            num_channels (int): Number of channels for timestep projection. Default: 256.
         """
         super().__init__()
         self.timestep_proj = Timesteps(
-            num_channels=256, flip_sin_to_cos=True, downscale_freq_shift=0
+            num_channels=num_channels, flip_sin_to_cos=True, downscale_freq_shift=0
         )
         self.timestep_embedder = TimestepEmbedding(
-            in_channels=256, time_embed_dim=emb_dim
+            in_channels=num_channels, time_embed_dim=dim
         )
         self.activation = act_fn()
-        self.linear = nn.Linear(emb_dim, emb_dim * 2)  # for scale and shift
-        self.norm = nn.LayerNorm(emb_dim, elementwise_affine=False)
+        self.linear = nn.Linear(dim, dim * 2)                       # for scale and shift
+        self.norm = nn.LayerNorm(dim, elementwise_affine=False)
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        timestep: torch.Tensor,
-        batch: torch.Tensor,
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
         """Apply adaptive layer normalization.
         
         Args:
-            x (n_points, emb_dim): Input tensor.
-            timestep (n_valid_parts,): Timestep tensor.
-            batch (n_valid_parts,): Batch indices.
-            
+            x (B, N, dim): Input tensor.
+            timestep (B,): Timestep tensor.
+
         Returns:
-            (n_points, emb_dim): Normalized tensor.
+            (B, N, dim): Normalized tensor.
         """
-        emb = self.linear(
-            self.activation(self.timestep_embedder(self.timestep_proj(timestep)))
-        )
-        scale, shift = emb.chunk(2, dim=1)      # (n_valid_parts, emb_dim) for both
-        # boardcast to the same shape as x
-        scale = scale[batch]                    # (n_points, emb_dim)
-        shift = shift[batch]                    # (n_points, emb_dim) 
-        # apply layer norm
+        emb = self.timestep_embedder(self.timestep_proj(timestep))    # (B, dim)
+        emb = self.linear(self.activation(emb))                       # (B, dim * 2)
+        scale, shift = emb.unsqueeze(1).chunk(2, dim=-1)              # (B, 1, dim) for both
         return self.norm(x) * (1 + scale) + shift
