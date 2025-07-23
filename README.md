@@ -15,7 +15,7 @@
 
 
 ## 🔔 News
-- [July 25, 2025] **Version 1.0**: We strongly recommend updating to this version, which includes:
+- [July 22, 2025] **Version 1.0**: We strongly recommend updating to this version, which includes:
   - Improved model speed (9-12% faster) and training stability.
   - Fixed bugs in configs, RK2 sampler, and validation.
   - Simplified point cloud packing and shaping.
@@ -136,17 +136,18 @@ python train.py --config-name "RPF_base_main" \
 - `model.encoder_ckpt`: Path to pretrained encoder checkpoint.
 - `data.batch_size`: Batch size per GPU. Defaults to 40 for 80GB GPU.
 
-**Note:** RPF's main training and inference logics are in [rectified_point_flow/modeling.py](rectified_point_flow/modeling.py).
+> [!TIP]
+> The main training and inference logics are in [rectified_point_flow/modeling.py](rectified_point_flow/modeling.py).
 
 
 ## 📚 More Details
 
 ### Training Data
 
-The model is trained on a combination of following datasets. Please be aware that datasets have different licenses. We will release the processed data files soon.
+The model is trained on a combination of datasets. Please be aware that datasets have different licenses.
 
 <details>
-<summary>Click to expand the list of training datasets.</summary>
+<summary>Click to expand the list of training datasets and license.</summary>
 
 | Dataset | Task | Part segmentation | #Parts | License | 
 |:---|:---|:---|:---|:---|
@@ -159,6 +160,7 @@ The model is trained on a combination of following datasets. Please be aware tha
 | [Objverse](https://objaverse.allenai.org/) | Overlap prediction | Segmented by [PartField](https://github.com/nv-tlabs/PartField) | [3, 12] | [ODC-BY 1.0](https://opendatacommons.org/licenses/by/1-0/) |
 </details>
 
+You can [download](https://storage.googleapis.com/rectified-point-flow-data/datasets/objaverse_38k.hdf5) our processed Objverse v1 dataset, which contains ~38k objects segmented by [PartField](https://github.com/nv-tlabs/PartField). We will release all other processed data files soon.
 
 ### Custom Datasets
 
@@ -282,7 +284,12 @@ Define parameters for Lightning's [Trainer](https://lightning.ai/docs/pytorch/la
 - Use [point-cloud-utils](https://github.com/fwilliams/point-cloud-utils) for faster point sampling: Enable with `USE_PCU=1 python train.py ...`.
 - Use HDF5 format and store the files on faster storage (e.g., SSD or NVMe).
 
-**Loss overflow**: We do find numerical instabilities during training, especially loss overflowing to NaN. If you encounter this when training, you may try to use `bf16` precision by adding `trainer.precision=bf16`.
+**Loss overflow**: We do find numerical instabilities during training, especially loss overflowing to NaN. If you encounter this when training, you may try to reduce the learning rate and use `bf16` precision by adding `trainer.precision=bf16`.
+
+**Dataloader workers killed**: Usually this is a signal of insufficient CPU memory or stack. You may try to reduce the `num_workers`. 
+
+> [!NOTE]
+> Please don't hesitate to open an [issue](/issues) if you encounter any problems or bugs!
 
 ## ☑️ Todo List
 - [x] Release model & demo code
