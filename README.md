@@ -19,6 +19,7 @@
   - Improved model speed (9-12% faster) and training stability.
   - Fixed bugs in configs, RK2 sampler, and validation.
   - Simplified point cloud packing and shaping.
+  - Checkpoints are compatible with the previous version.
 
 - [July 9, 2025] **Version 0.1**: Release training codes.
 
