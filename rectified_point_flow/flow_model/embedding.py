@@ -117,33 +117,42 @@ class PointCloudEncodingManager(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,       # (n_points, 3)
-        latent: dict,          # PointTransformer's `Point` instance
-        scale: torch.Tensor,   # (n_valid_parts, )
+        x: torch.Tensor,
+        latent: dict,
+        scales: torch.Tensor,
     ) -> torch.Tensor:
         """Generate PointCloudEmbedding from the input.
         
         Args:
-            x: Input coordinates tensor of shape (n_points, 3).
-            latent: Dictionary containing point cloud features and metadata.
-            scale: Scale factors of shape (n_valid_parts, 1).
+            x (B, N, 3): Noise point coordinates at timestep t.
+            latent: PointTransformer's Point instance of conditional point cloud:
+                - "coord" (n_points, 3): Point coordinates
+                - "normal" (n_points, 3): Point normals
+                - "feat" (n_points, in_dim): Point features  
+            scales (B, ): Scale factor for the point cloud.
             
         Returns:
-            Shape embeddings of shape (n_points, embed_dim).
+            Shape embeddings of shape (B, N, dim).
         """
+        B, N, _ = x.shape
+
         # Coordinate of noise PCs
-        x_pos_emb = self.noise_embedding.embed(x)                   # (n_points, emb_dim)
+        x_pos_emb = self.noise_embedding.embed(x)                    # (B, N, dim)
 
         # Coordinate of condition PCs
-        c_pos_emb = self.coord_embedding.embed(latent["coord"])     # (n_points, emb_dim)
-        
+        coord = latent["coord"].view(B, N, 3)
+        c_pos_emb = self.coord_embedding.embed(coord)                # (B, N, dim)
+
         # Normal of condition PCs
-        normal_emb = self.normal_embedding.embed(latent["normal"])  # (n_points, emb_dim)
+        normal = latent["normal"].view(B, N, 3)
+        normal_emb = self.normal_embedding.embed(normal)             # (B, N, dim)
 
         # Scale of condition PCs
-        scale_emb = self.scale_embedding.embed(scale.unsqueeze(-1)) # (n_valid_parts, emb_dim)
-        scale_emb = scale_emb[latent["batch"]]                      # (n_points, emb_dim)
+        scale_emb = self.scale_embedding.embed(scales.unsqueeze(-1)) # (B, 1, dim)
+        scale_emb = scale_emb.unsqueeze(1).expand(B, N, -1)          # (B, N, dim)
 
         # Concatenate with point features
-        x = torch.cat([latent["feat"], c_pos_emb, x_pos_emb, normal_emb, scale_emb], dim=-1)
+        feat = latent["feat"].view(B, N, -1)                         # (B, N, in_dim)
+        x = torch.cat([feat, c_pos_emb, x_pos_emb, normal_emb, scale_emb], dim=-1)
+        
         return self.emb_proj(x)

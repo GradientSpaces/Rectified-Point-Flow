@@ -15,8 +15,10 @@
 
 
 ## 🔔 News
-- [July 15, 2025] Improve training stability and fix bugs.
-- [July 9, 2025] Released training codes.
+- [July 25, 2025] **(Version 1.0)** Improve training speed (9-12% faster) and stability; fix bugs in configs, RK2 sampler, and validation. Please kindly update the code to this version.
+
+- [July 9, 2025] **(Version 0.1)**  Released training codes.
+
 - [July 1, 2025] Released model checkpoints and inference codes. 
 
 ## Overview
@@ -74,7 +76,7 @@ This saves images of the input (unposed) parts and multiple generations for poss
 
 - **Renderer**: We use [Mitsuba](https://mitsuba.readthedocs.io/en/latest/) for high quality ray-traced rendering, as shown above. For a faster rendering, please switch to [PyTorch3D PointsRasterizer](https://pytorch3d.readthedocs.io/en/latest/modules/renderer/points/rasterizer.html#pytorch3d.renderer.points.rasterizer.PointsRasterizer) by adding `visualizer.renderer=pytorch3d`. To disable rendering, use `visualizer.renderer=none`. More rendering options are available in [config/visualizer](config/visualizer/flow.yaml).
 
-- **Sampler**: We support Euler, RK2 (default), and RK4 samplers for inference, set `model.inference_sampler={euler, rk2, rk4}` accordingly.
+- **Sampler**: We support Euler (default), RK2, and RK4 samplers for inference, set `model.inference_sampler={euler, rk2, rk4}` accordingly.
 
 **Overlap Prediction:** To visualize the overlap probabilities predicted by the encoder, please run:
 

@@ -1,0 +1,35 @@
+# Training Rectified Point Flow
+
+defaults:
+  - model: rectified_point_flow
+  - data: ikea_partnet_everyday_twobytwo_modelnet_tudl
+  - trainer: main
+  - loggers: wandb
+  - _self_
+
+# Random seed for reproducibility
+seed: 42
+
+# Data root
+data_root: "../dataset"
+data:
+  num_points_to_sample: 10000
+
+# Experiment name and log directory
+experiment_name: RPF_base
+log_dir: ./output/${experiment_name}
+ckpt_path: ${log_dir}/last.ckpt
+hydra:
+  run:
+    dir: ${log_dir}
+
+# Model settings
+model:
+  encoder_ckpt: null
+  flow_model_ckpt: null
+  
+  flow_model:
+    # For 10k points, we replace QK norm by softcapping for speeding up.
+    attn_dtype: "bfloat16"
+    softcap: 50.0
+    qk_norm: False
