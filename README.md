@@ -2,6 +2,8 @@
 
 [![ProjectPage](https://img.shields.io/badge/Project_Page-RPF-blue)](https://rectified-pointflow.github.io/) [![arXiv](https://img.shields.io/badge/arXiv-2506.05282-blue?logo=arxiv&color=%23B31B1B)](https://arxiv.org/abs/2506.05282) [![Hugging Face (LCM) Space](https://img.shields.io/badge/🤗%20Hugging%20Face%20-Space-yellow)](https://huggingface.co/gradient-spaces/Rectified-Point-Flow) [![License](https://img.shields.io/badge/License-Apache--2.0-929292)](https://www.apache.org/licenses/LICENSE-2.0)
 
+### NeurIPS 2025 (Spotlight)
+
 [Tao Sun](https://taosun.io/) *<sup>,1</sup>,
 [Liyuan Zhu](https://www.zhuliyuan.net/) *<sup>,1</sup>,
 [Shengyu Huang](https://shengyuh.github.io/)<sup>2</sup>,
@@ -306,7 +308,7 @@ If you find the code or data useful for your research, please cite our paper:
 @inproceedings{sun2025_rpf,
       author = {Sun, Tao and Zhu, Liyuan and Huang, Shengyu and Song, Shuran and Armeni, Iro},
       title = {Rectified Point Flow: Generic Point Cloud Pose Estimation},
-      booktitle = {arxiv preprint arXiv:2506.05282},
+      booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
       year = {2025},
     }
 ```
