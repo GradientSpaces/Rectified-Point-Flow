@@ -17,6 +17,8 @@
 
 
 ## 🔔 News
+- [Sept 18, 2025] Our paper has been accepted to **NeurIPS 2025 (Spotlight)**; see you in San Diego!
+
 - [July 22, 2025] **Version 1.0**: We strongly recommend updating to this version, which includes:
   - Improved model speed (9-12% faster) and training stability.
   - Fixed bugs in configs, RK2 sampler, and validation.
