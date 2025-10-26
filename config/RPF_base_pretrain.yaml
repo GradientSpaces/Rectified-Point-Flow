@@ -23,6 +23,7 @@ hydra:
 
 model:
   compute_overlap_points: true
+  build_overlap_head: true
 
 data:
   limit_val_samples: 1000

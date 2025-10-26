@@ -23,3 +23,4 @@ ckpt_path: null          # when null, the checkpoint will be downloaded from Hug
 # Model settings
 model:
   compute_overlap_points: true
+  build_overlap_head: true
