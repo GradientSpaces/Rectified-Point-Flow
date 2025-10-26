@@ -27,8 +27,10 @@ class RectifiedPointFlow(L.LightningModule):
         lr_scheduler: "partial[torch.optim.lr_scheduler._LRScheduler]" = None,
         encoder_ckpt: str = None,
         flow_model_ckpt: str = None,
+        frozen_encoder: bool = False,
+        anchor_free: bool = True,
         loss_type: str = "mse",
-        timestep_sampling: str = "u-shaped",
+        timestep_sampling: str = "u_shaped",
         inference_sampling_steps: int = 20,
         inference_sampler: str = "euler",
         n_generations: int = 1,
@@ -40,6 +42,8 @@ class RectifiedPointFlow(L.LightningModule):
         self.flow_model = flow_model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
+        self.frozen_encoder = frozen_encoder
+        self.anchor_free = anchor_free
         self.loss_type = loss_type
         self.timestep_sampling = timestep_sampling
         self.inference_sampling_steps = inference_sampling_steps
@@ -69,12 +73,19 @@ class RectifiedPointFlow(L.LightningModule):
         self.meter = MetricsMeter(self)
         self._freeze_encoder()
 
-    def _freeze_encoder(self):
-        self.feature_extractor.eval()
-        for module in self.feature_extractor.modules():
-            module.eval()
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
+    def _freeze_encoder(self, eval_mode: bool = False):
+        if self.frozen_encoder or eval_mode:
+            self.feature_extractor.eval()
+            for module in self.feature_extractor.modules():
+                module.eval()
+            for param in self.feature_extractor.parameters():
+                param.requires_grad = False
+        else:
+            self.feature_extractor.train()
+            for module in self.feature_extractor.modules():
+                module.train()
+            for param in self.feature_extractor.parameters():
+                param.requires_grad = True
 
     def on_train_epoch_start(self):
         super().on_train_epoch_start()
@@ -82,11 +93,11 @@ class RectifiedPointFlow(L.LightningModule):
 
     def on_validation_epoch_start(self):
         super().on_validation_epoch_start()
-        self._freeze_encoder()
+        self._freeze_encoder(eval_mode=True)
 
     def on_test_epoch_start(self):
         super().on_test_epoch_start()
-        self._freeze_encoder()
+        self._freeze_encoder(eval_mode=True)
 
     def _sample_timesteps(
         self,
@@ -120,7 +131,7 @@ class RectifiedPointFlow(L.LightningModule):
     
     def _encode(self, data_dict: dict):
         """Extract features from input data using FP16."""
-        with torch.inference_mode():
+        with torch.inference_mode(self.frozen_encoder):
             with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=True):
                 out_dict = self.feature_extractor(data_dict)
         points = out_dict["point"]
@@ -161,9 +172,10 @@ class RectifiedPointFlow(L.LightningModule):
         x_1 = torch.randn_like(x_0)                                 # (B, N, 3)
         x_t, v_t = self._compute_flow_target(x_0, x_1, timesteps)   # (B, N, 3) each
         
-        # Apply anchor part constraints
-        x_t[anchor_indices] = x_0[anchor_indices]
-        v_t[anchor_indices] = 0.0
+        # Apply anchor part constraints (only used in anchor-fixed mode)
+        if not self.anchor_free:
+            x_t[anchor_indices] = x_0[anchor_indices]
+            v_t[anchor_indices] = 0.0
         
         # Predict velocity field
         v_pred = self.flow_model(
@@ -318,7 +330,7 @@ class RectifiedPointFlow(L.LightningModule):
             flow_model_fn=_flow_model_fn,
             x_1=x_1,
             x_0=x_0,
-            anchor_indices=anchor_indices,
+            anchor_indices=anchor_indices if not self.anchor_free else None, # None => skip anchor constraints
             num_steps=self.inference_sampling_steps,
             return_trajectory=return_tarjectory,
         )

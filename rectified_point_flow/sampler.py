@@ -4,6 +4,16 @@ import torch
 from typing import Callable
 from functools import partial
 
+
+# Anchor helper
+
+def _reset_anchor(x_t: torch.Tensor, x_0: torch.Tensor, anchor_indices: torch.Tensor | None = None) -> torch.Tensor:
+    """Reset anchor parts to the ground truth anchor parts if anchor_indices is not None."""
+    if anchor_indices is not None:
+        x_t[anchor_indices] = x_0[anchor_indices]
+    return x_t
+
+
 # Base sampler
 
 def flow_sampler(
@@ -11,7 +21,7 @@ def flow_sampler(
     flow_model_fn: Callable,
     x_1: torch.Tensor,
     x_0: torch.Tensor,
-    anchor_indices: torch.Tensor,
+    anchor_indices: torch.Tensor | None = None,
     num_steps: int = 20,
     return_trajectory: bool = False,
 ) -> torch.Tensor:
@@ -22,7 +32,7 @@ def flow_sampler(
         flow_model_fn: Partial flow model function that takes (x, timesteps) and returns velocity.
         x_1: Initial noise (B, N, 3).
         x_0: Ground truth anchor points (B, N, 3).
-        anchor_indices: Anchor point indices (B, N).
+        anchor_indices: Anchor point indices (B, N). If None, no anchor part constraints are applied (used in anchor-free mode).
         num_steps: Number of integration steps, default 20.
         return_trajectory: Whether to return full trajectory, default False.
         
@@ -31,7 +41,7 @@ def flow_sampler(
     """
     dt = 1.0 / num_steps
     x_t = x_1.clone()
-    x_t[anchor_indices] = x_0[anchor_indices]
+    x_t = _reset_anchor(x_t, x_0, anchor_indices)
 
     if return_trajectory:
         trajectory = torch.empty((num_steps, *x_1.shape), device=x_1.device)
@@ -60,7 +70,7 @@ def euler_step(
     """Euler integration step."""
     v = flow_model_fn(x_t, t)
     x_t = x_t - dt * v
-    x_t[anchor_indices] = x_0[anchor_indices]
+    x_t = _reset_anchor(x_t, x_0, anchor_indices)
     return x_t
 
 def rk2_step(
@@ -77,13 +87,13 @@ def rk2_step(
 
     # K2
     x_mid = x_t - 0.5 * dt * v1
-    x_mid[anchor_indices] = x_0[anchor_indices]
+    x_mid = _reset_anchor(x_mid, x_0, anchor_indices)
     t_next = max(0, t - 0.5 * dt)
     v2 = flow_model_fn(x_mid, t_next)
 
     # RK2 update
     x_t = x_t - dt * (v1 + v2) / 2
-    x_t[anchor_indices] = x_0[anchor_indices]
+    x_t = _reset_anchor(x_t, x_0, anchor_indices)
     return x_t
 
 def rk4_step(
@@ -100,24 +110,24 @@ def rk4_step(
     
     # K2
     x_temp = x_t - dt * v1 / 2
-    x_temp[anchor_indices] = x_0[anchor_indices]
+    x_temp = _reset_anchor(x_temp, x_0, anchor_indices)
     t_half = max(0, t - dt / 2)
     v2 = flow_model_fn(x_temp, t_half)
     
     # K3
     x_temp = x_t - dt * v2 / 2
-    x_temp[anchor_indices] = x_0[anchor_indices]
+    x_temp = _reset_anchor(x_temp, x_0, anchor_indices)
     v3 = flow_model_fn(x_temp, t_half)
     
     # K4
     x_temp = x_t - dt * v3
-    x_temp[anchor_indices] = x_0[anchor_indices]
+    x_temp = _reset_anchor(x_temp, x_0, anchor_indices)
     t_next = max(0, t - dt)
     v4 = flow_model_fn(x_temp, t_next)
     
     # RK4 update
     x_t = x_t - dt * (v1 + 2 * v2 + 2 * v3 + v4) / 6
-    x_t[anchor_indices] = x_0[anchor_indices]
+    x_t = _reset_anchor(x_t, x_0, anchor_indices)
     return x_t
 
 
@@ -130,7 +140,7 @@ def get_sampler(sampler_name: str):
         sampler_name: Name of the sampler ('euler', 'rk2', 'rk4')
         
     Returns:
-        Sampler function
+        Sampler function with input arguments (step_fn, flow_model_fn, x_1, x_0, anchor_indices, num_steps, return_trajectory=False)
     """
     step_fns = {
         'euler': euler_step,

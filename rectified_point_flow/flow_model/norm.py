@@ -28,7 +28,9 @@ class MultiHeadRMSNorm(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply multi-head RMS normalization."""
-        return F.normalize(x, dim=-1) * self.gamma * self.scale
+        orig = x.dtype
+        x = F.normalize(x.float(), dim=-1, eps=1e-6)
+        return (x * self.gamma * self.scale).to(orig)
 
 
 class AdaptiveLayerNorm(nn.Module):

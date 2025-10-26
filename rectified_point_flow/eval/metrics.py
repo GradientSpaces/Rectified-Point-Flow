@@ -9,6 +9,49 @@ from scipy.optimize import linear_sum_assignment
 from ..utils.point_clouds import split_parts
 
 
+def align_anchor(
+    pointclouds_gt: torch.Tensor,
+    pointclouds_pred: torch.Tensor,
+    points_per_part: torch.Tensor,
+    anchor_parts: torch.Tensor,
+) -> torch.Tensor:
+    """Align the predicted anchor parts to the ground truth anchor parts using ICP.
+
+    Args:
+        pointclouds_gt (B, N, 3): Ground truth point clouds.
+        pointclouds_pred (B, N, 3): Sampled point clouds.
+        points_per_part (B, P): Number of points in each part.
+        anchor_parts (B, P): Whether the part is an anchor part; we use the first part with the flag of True as the anchor part.
+
+    Returns:
+        pointclouds_pred_aligned (B, N, 3): Aligned sampled point clouds.
+    """
+    B, P = anchor_parts.shape
+    device = pointclouds_pred.device
+    pointclouds_pred_aligned = pointclouds_pred.clone()
+
+    with torch.amp.autocast(device_type=device.type, dtype=torch.float32):
+        for b in range(B):
+            pts_count = 0
+            for p in range(P):
+                if points_per_part[b, p] == 0:
+                    continue
+                if anchor_parts[b, p]:
+                    ed = pts_count + points_per_part[b, p]
+                    anchor_align_icp = iterative_closest_point(pointclouds_pred[b, pts_count:ed].unsqueeze(0), pointclouds_gt[b, pts_count:ed].unsqueeze(0)).RTs
+                    break
+
+            pts_count = 0
+            for p in range(P):
+                if points_per_part[b, p] == 0:
+                    continue
+                ed = pts_count + points_per_part[b, p]
+                pointclouds_pred_aligned[b, pts_count:ed] = pointclouds_pred[b, pts_count:ed] @ anchor_align_icp.R[0].T + anchor_align_icp.T[0]
+                pts_count = ed
+
+    return pointclouds_pred_aligned
+
+
 def compute_object_cd(
     pointclouds_gt: torch.Tensor,
     pointclouds_pred: torch.Tensor,
