@@ -18,8 +18,8 @@
 
 ## 🔔 News
 - [Oct 26, 2025] Our NeurIPS camera-ready paper is available on [arXiv](https://arxiv.org/abs/2506.05282v2)! 🎉
-  - We include an **anchor-free** version, which aligns more with practical assembly assumptions. We find that the anchor-free RPF achieves similar performance to the anchor-fixed RPF, and shows better generalization ability. 
-  - The codes and checkpoints are updated for anchor-free mode. For more details, please check the [PR](https://github.com/GradientSpaces/Rectified-Point-Flow/pull/25).
+  - We include an **anchor-free** version, which aligns more with practical assembly assumptions. We find that the anchor-free RPF achieves similar performance to the anchor-fixed version, and shows better generalization ability. 
+  - The codes and checkpoints are updated for anchor-free mode. See the [PR](https://github.com/GradientSpaces/Rectified-Point-Flow/pull/25) for more details.
 
 - [Sept 18, 2025] Our paper has been accepted to **NeurIPS 2025 (Spotlight)**; see you in San Diego!
 
