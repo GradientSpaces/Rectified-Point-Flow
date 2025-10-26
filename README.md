@@ -17,9 +17,9 @@
 
 
 ## 🔔 News
-- [Oct 26, 2025] Our NeurIPS camera-ready paper is available on [arXiv](https://arxiv.org/abs/2506.05282v2)! 🎉🎉🎉 
-  - We include an additional **anchor-free** version for RPF, which aligns more with practical assembly tasks. We find that the anchor-free RPF can achieve similar performance to the anchor-fixed RPF, and shows better generalization ability. 
-  - The code and checkpoints are updated to support the anchor-free mode. For more details, please see the [PR](https://github.com/GradientSpaces/Rectified-Point-Flow/pull/25).
+- [Oct 26, 2025] Our NeurIPS camera-ready paper is available on [arXiv](https://arxiv.org/abs/2506.05282v2)! 🎉
+  - We include an **anchor-free** version, which aligns more with practical assembly assumptions. We find that the anchor-free RPF achieves similar performance to the anchor-fixed RPF, and shows better generalization ability. 
+  - The codes and checkpoints are updated for anchor-free mode. For more details, please check the [PR](https://github.com/GradientSpaces/Rectified-Point-Flow/pull/25).
 
 - [Sept 18, 2025] Our paper has been accepted to **NeurIPS 2025 (Spotlight)**; see you in San Diego!
 
@@ -295,6 +295,7 @@ Define parameters for Lightning's [Trainer](https://lightning.ai/docs/pytorch/la
 **Loss overflow**: We do find numerical instabilities during training, especially loss overflowing to NaN. If you encounter this when training, you may try to reduce the learning rate and use `bf16` precision by adding `trainer.precision=bf16`.
 
 **Dataloader workers killed**: Usually this is a signal of insufficient CPU memory or stack. You may try to reduce the `num_workers`. 
+
 
 > [!NOTE]
 > Please don't hesitate to open an [issue](/issues) if you encounter any problems or bugs!
