@@ -17,6 +17,10 @@
 
 
 ## 🔔 News
+- [Oct 26, 2025] Our NeurIPS camera-ready [paper](https://arxiv.org/abs/2506.05282v2) is available! 🎉 
+  - We include additional experiments on generalizability and a new **anchor-free** model, which aligns more with practical assembly assumptions.
+  - We release **Version 1.1** to support the anchor-free model; see the [PR](https://github.com/GradientSpaces/Rectified-Point-Flow/pull/25) for more details.
+
 - [Sept 18, 2025] Our paper has been accepted to **NeurIPS 2025 (Spotlight)**; see you in San Diego!
 
 - [July 22, 2025] **Version 1.0**: We strongly recommend updating to this version, which includes:
@@ -291,6 +295,7 @@ Define parameters for Lightning's [Trainer](https://lightning.ai/docs/pytorch/la
 **Loss overflow**: We do find numerical instabilities during training, especially loss overflowing to NaN. If you encounter this when training, you may try to reduce the learning rate and use `bf16` precision by adding `trainer.precision=bf16`.
 
 **Dataloader workers killed**: Usually this is a signal of insufficient CPU memory or stack. You may try to reduce the `num_workers`. 
+
 
 > [!NOTE]
 > Please don't hesitate to open an [issue](/issues) if you encounter any problems or bugs!

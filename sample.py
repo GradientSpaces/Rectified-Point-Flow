@@ -22,7 +22,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.benchmark = True
 
-DEFAULT_CKPT_PATH_HF = "RPF_base_full_ep2000.ckpt"
+DEFAULT_CKPT_PATH_HF = "RPF_base_full_anchorfree_ep2000.ckpt"
 
 
 def setup(cfg: DictConfig):

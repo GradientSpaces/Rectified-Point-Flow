@@ -5,7 +5,7 @@ from typing import Any, Dict
 import torch
 import lightning as L
 
-from .metrics import compute_object_cd, compute_part_acc, compute_transform_errors
+from .metrics import compute_object_cd, compute_part_acc, compute_transform_errors, align_anchor
 
 
 class Evaluator:
@@ -33,6 +33,10 @@ class Evaluator:
         pointclouds_pred = pointclouds_pred.view(B, -1, 3)
         pts_gt_rescaled = pts_gt * scales.view(B, 1, 1)
         pts_pred_rescaled = pointclouds_pred * scales.view(B, 1, 1)
+
+        # Align the predicted anchor parts to the ground truth anchor parts using ICP (only used in anchor-free mode)
+        if self.model.anchor_free:
+            pts_pred_rescaled = align_anchor(pts_gt_rescaled, pts_pred_rescaled, points_per_part, anchor_parts)
 
         object_cd = compute_object_cd(pts_gt_rescaled, pts_pred_rescaled)
         part_acc, matched_parts = compute_part_acc(pts_gt_rescaled, pts_pred_rescaled, points_per_part)

@@ -33,6 +33,7 @@ class PointCloudDataModule(L.LightningDataModule):
         up_axis: dict[str, str] = {},
         min_parts: int = 2,
         max_parts: int = 64,
+        anchor_free: bool = True,
         num_points_to_sample: int = 5000,
         min_points_per_part: int = 20,
         min_dataset_size: int = 2000,
@@ -51,6 +52,9 @@ class PointCloudDataModule(L.LightningDataModule):
                      If not provided, the up axis is assumed to be 'y'. This only affects the visualization.
             min_parts: Minimum number of parts in a point cloud.
             max_parts: Maximum number of parts in a point cloud.
+            anchor_free: Whether to use anchor-free mode.
+                     If True, the anchor part is centered and randomly rotated, like the non-anchor parts (default).
+                     If False, the anchor part is not centered and thus its pose in the CoM frame of the GT point cloud is given (align with GARF).
             num_points_to_sample: Number of points to sample from each point cloud.
             min_points_per_part: Minimum number of points per part.
             min_dataset_size: Minimum number of point clouds in a dataset.
@@ -65,6 +69,7 @@ class PointCloudDataModule(L.LightningDataModule):
         self.up_axis = up_axis
         self.min_parts = min_parts
         self.max_parts = max_parts
+        self.anchor_free = anchor_free
         self.num_points_to_sample = num_points_to_sample
         self.min_points_per_part = min_points_per_part
         self.batch_size = batch_size
@@ -120,6 +125,7 @@ class PointCloudDataModule(L.LightningDataModule):
                         num_points_to_sample=self.num_points_to_sample,
                         min_points_per_part=self.min_points_per_part,
                         min_dataset_size=self.min_dataset_size,
+                        anchor_free=self.anchor_free,
                         random_scale_range=self.random_scale_range,
                         multi_anchor=self.multi_anchor,
                     )
@@ -136,6 +142,7 @@ class PointCloudDataModule(L.LightningDataModule):
                         dataset_name=dataset_name,
                         min_parts=self.min_parts,
                         max_parts=self.max_parts,
+                        anchor_free=self.anchor_free,
                         num_points_to_sample=self.num_points_to_sample,
                         min_points_per_part=self.min_points_per_part,
                         limit_val_samples=self.limit_val_samples,
@@ -146,6 +153,7 @@ class PointCloudDataModule(L.LightningDataModule):
             logger.info(make_line())
             logger.info("Total Train Samples: " + str(self.train_dataset.cumulative_sizes[-1]))
             logger.info("Total Val Samples: " + str(self.val_dataset.cumulative_sizes[-1]))
+            logger.info("Anchor-free Mode: " + str(self.anchor_free))
 
         elif stage == "validate":
             self.val_dataset = ConcatDataset(
@@ -157,6 +165,7 @@ class PointCloudDataModule(L.LightningDataModule):
                         up_axis=self.up_axis.get(dataset_name, "y"),
                         min_parts=self.min_parts,
                         max_parts=self.max_parts,
+                        anchor_free=self.anchor_free,
                         num_points_to_sample=self.num_points_to_sample,
                         min_points_per_part=self.min_points_per_part,
                         limit_val_samples=self.limit_val_samples,
@@ -166,6 +175,7 @@ class PointCloudDataModule(L.LightningDataModule):
             )
             logger.info(make_line())
             logger.info("Total Val Samples: " + str(self.val_dataset.cumulative_sizes[-1]))
+            logger.info("Anchor-free Mode: " + str(self.anchor_free))
 
         elif stage in ["test", "predict"]:
             self.test_dataset = [
@@ -176,6 +186,7 @@ class PointCloudDataModule(L.LightningDataModule):
                     up_axis=self.up_axis.get(dataset_name, "y"),
                     min_parts=self.min_parts,
                     max_parts=self.max_parts,
+                    anchor_free=self.anchor_free,
                     num_points_to_sample=self.num_points_to_sample,
                     min_points_per_part=self.min_points_per_part,
                     limit_val_samples=self.limit_val_samples,
@@ -184,6 +195,7 @@ class PointCloudDataModule(L.LightningDataModule):
             ]
             logger.info(make_line())
             logger.info("Total Test Samples: " + str(sum(len(dataset) for dataset in self.test_dataset)))
+            logger.info("Anchor-free Mode: " + str(self.anchor_free))
 
     def train_dataloader(self):
         """Get training dataloader."""
