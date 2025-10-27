@@ -17,21 +17,9 @@
 
 
 ## 🔔 News
-- [Oct 26, 2025] Our NeurIPS camera-ready paper is available on [arXiv](https://arxiv.org/abs/2506.05282v2)! 🎉
-  - We include an **anchor-free** version, which aligns more with practical assembly assumptions. We find that the anchor-free RPF achieves similar performance to the anchor-fixed version, and shows better generalization ability. 
-  - The codes and checkpoints are updated for anchor-free mode. See the [PR](https://github.com/GradientSpaces/Rectified-Point-Flow/pull/25) for more details.
-
-- [Sept 18, 2025] Our paper has been accepted to **NeurIPS 2025 (Spotlight)**; see you in San Diego!
-
-- [July 22, 2025] **Version 1.0**: We strongly recommend updating to this version, which includes:
-  - Improved model speed (9-12% faster) and training stability.
-  - Fixed bugs in configs, RK2 sampler, and validation.
-  - Simplified point cloud packing and shaping.
-  - Checkpoints are compatible with the previous version.
-
-- [July 9, 2025] **Version 0.1**: Release training codes.
-
-- [July 1, 2025] Initial release of the model checkpoints and inference codes.
+- [Oct 26, 2025] 
+  - Our NeurIPS camera-ready paper is available on [arXiv](https://arxiv.org/abs/2506.05282v2)! 🎉 It includes an additional **anchor-free** version of RPF, which aligns more with practical assembly assumptions. We also provide additional experiments on generalizability to the paper.
+  - We release **Version 1.1** to support the anchor-free version. See the [PR](https://github.com/GradientSpaces/Rectified-Point-Flow/pull/25) for more details.
 
 ## Overview
 
@@ -328,42 +316,3 @@ Some codes in this repo are borrowed from open-source projects, including [DiT](
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-
-This PR adds an anchor-free mode for the RPF training and inference.
-
-In anchor-free mode, the model is not given the anchor part’s pose in the assembled object CoM frame during training or inference, a more practical assumption for real-world assembly tasks.
-
-Comparison between Anchor-fixed and Anchor-free:
-
-Anchor Fixed	Anchor Free
-Training	Anchor: Global Rotation.
-Non-anchor: Global Rotation + Part Centring + Part Rotation.	Anchor: Global Rotation + Part Centring.
-Non-anchor: Global Rotation + Part Centring + Part Rotation.
-Inference	Sampling the flow with anchor's point cloud reset to GT every step.	Sampling the flow without anchor resetting.
-
-### Evaluation in the Anchor-free Mode
-Evaluation in the Anchor-free Mode. To keep evaluation comparable between anchor-fixed and anchor-free models,
-we perform the alignment steps at evaluation time for anchor-free predictions:
-
-Align the predicted anchor part to the GT anchor part using ICP.
-Apply the same rigid transformation to all predicted non-anchor parts.
-Evaluate the aligned whole point cloud against ground truth.
-Configuration. The anchor-free mode is enabled by model.anchor_free=true and data.anchor_free=true in the config. They are already enabled by default.
-
-Code Changes:
-
-Added an anchor_free parameter (default True) to the rectified_point_flow/data/{dataset, datamodule}.py.
-Modified the dataset transformation logic to handle anchor parts differently depending on the mode.
-Added an align_anchor function to rectified_point_flow/eval/metrics.py and used it in the evaluator to align predicted anchor parts with ground truth via ICP in anchor-free mode.
-More details and results of the anchor-free model can be found in our paper (Appendix. B).
-
-
-Q: Why does an anchor-fixed mode leak information of the GT?
-A: During preprocessing, the full object is globally centered to its CoM (center of mass) frame and then normalized to unit scale. If the anchor part is not independently re-centered (i.e., Part Centering ), its coordinates implicitly encode the assembled object’s CoM.
-
-Q: Why don't we apply Part Rotation to the anchor part in anchor-free mode?
-A: Anchor-free training already randomly rotates all non-anchor parts, so the anchor does not provide a stable orientation signal. Applying an extra Part Rotation to the anchor is essentially the same as we add this rotation to the Global Rotation, so we omit this redundant step.
-
-Q: If the anchor pose is removed, why do we still return the `anchor_indices` in anchor-free mode?
-A: This is necessary for evaluation alignment: at test time we align the predicted anchor to the GT anchor using ICP and apply the same rigid transform to all predicted non-anchor parts before computing metrics. We don't reset the model's predicted anchor part to the GT in anchor-free mode.
