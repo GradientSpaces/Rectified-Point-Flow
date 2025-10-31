@@ -153,8 +153,8 @@ python train.py --config-name "RPF_base_main" \
 ### Training Data
 The flow model is trained on the first six datasets listed below. The encoder is pretrained on these six datasets **plus** an additional preprocessed Objaverse v1 dataset (~38k objects) segmented by [PartField](https://github.com/nv-tlabs/PartField). Please note that dataset licenses vary.
 
-| Dataset | Task | Part segmentation | Parts | License | Download |
-|:---|:---|:---|:---:|:---|:---:|
+| Dataset | Task | Part segmentation | Num of Parts | License | Download |
+|:---|:---|:---|:---|:---|:---|
 | [IKEA-Manual](https://yunongliu1.github.io/ikea-video-manual/) | Shape assembly | Defined by IKEA manuals. | [2, 19] | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | [293 MB](https://storage.googleapis.com/flow-asm/ikea.hdf5) |
 | [PartNet](https://partnet.cs.stanford.edu/) | Shape assembly | Annotated by human. | [2, 64] | [MIT License](https://mit-license.org/) | [52 GB](https://storage.googleapis.com/flow-asm/partnet.hdf5) |
 | [BreakingBad-Everyday](https://breaking-bad-dataset.github.io/) | Shape assembly | Simulated fractures via [fracture-modes](https://github.com/sgsellan/fracture-modes#dataset). | [2, 49] | [MIT License](https://mit-license.org/) | [27 GB](https://storage.googleapis.com/flow-asm/breaking_bad_vol.hdf5) |
