@@ -17,21 +17,21 @@
 
 
 ## 🔔 News
-- [Oct 26, 2025] Our NeurIPS camera-ready [paper](https://arxiv.org/abs/2506.05282v2) is available! 🎉 
+- [*Oct 26, 2025*] Our NeurIPS camera-ready [paper](https://arxiv.org/abs/2506.05282v2) is available! 🎉 
   - We include additional experiments on generalizability and a new **anchor-free** model, which aligns more with practical assembly assumptions.
   - We release **Version 1.1** to support the anchor-free model; see the [PR](https://github.com/GradientSpaces/Rectified-Point-Flow/pull/25) for more details.
 
-- [Sept 18, 2025] Our paper has been accepted to **NeurIPS 2025 (Spotlight)**; see you in San Diego!
+- [*Sept 18, 2025*] Our paper has been accepted to **NeurIPS 2025 (Spotlight)**; see you in San Diego!
 
-- [July 22, 2025] **Version 1.0**: We strongly recommend updating to this version, which includes:
+- [*July 22, 2025*] **Version 1.0**: We strongly recommend updating to this version, which includes:
   - Improved model speed (9-12% faster) and training stability.
   - Fixed bugs in configs, RK2 sampler, and validation.
   - Simplified point cloud packing and shaping.
   - Checkpoints are compatible with the previous version.
 
-- [July 9, 2025] **Version 0.1**: Release training codes.
+- [*July 9, 2025*] **Version 0.1**: Release training codes.
 
-- [July 1, 2025] Initial release of the model checkpoints and inference codes.
+- [*July 1, 2025*] Initial release of the model checkpoints and inference codes.
 
 ## Overview
 
@@ -151,24 +151,17 @@ python train.py --config-name "RPF_base_main" \
 ## 📚 More Details
 
 ### Training Data
+The flow model is trained on the first six datasets listed below. The encoder is pretrained on these six datasets **plus** an additional preprocessed Objaverse v1 dataset (~38k objects) segmented by [PartField](https://github.com/nv-tlabs/PartField). Please note that dataset licenses vary.
 
-The model is trained on a combination of datasets. Please be aware that datasets have different licenses.
-
-<details>
-<summary>Click to expand the list of training datasets and license.</summary>
-
-| Dataset | Task | Part segmentation | #Parts | License | 
-|:---|:---|:---|:---|:---|
-| [IKEA-Manual](https://yunongliu1.github.io/ikea-video-manual/) | Shape assembly | Defined by IKEA manuals | [2, 19] | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
-| [PartNet](https://partnet.cs.stanford.edu/) | Shape assembly | Annotated by human | [2, 64] | [MIT License](https://mit-license.org/) |
-| [BreakingBad-Everyday](https://breaking-bad-dataset.github.io/) | Shape assembly | Simulated fractures via [fracture-modes](https://github.com/sgsellan/fracture-modes#dataset) | [2, 49] | [MIT License](https://mit-license.org/) |
-| [Two-by-Two](https://tea-lab.github.io/TwoByTwo/) | Shape assembly | Annotated by human | 2 | [MIT License](https://mit-license.org/) | 
-| [ModelNet-40](https://modelnet.cs.princeton.edu/#) | Pairwise registration | Following [Predator](https://github.com/prs-eth/OverlapPredator) split | 2 | [Custom](https://modelnet.cs.princeton.edu/#) |
-| [TUD-L](https://bop.felk.cvut.cz/datasets/) | Pairwise registration | Real scans with partial observations | 2 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
-| [Objverse](https://objaverse.allenai.org/) | Overlap prediction | Segmented by [PartField](https://github.com/nv-tlabs/PartField) | [3, 12] | [ODC-BY 1.0](https://opendatacommons.org/licenses/by/1-0/) |
-</details>
-
-You can [download (179GB)](https://storage.googleapis.com/rectified-point-flow-data/datasets/objaverse_38k.hdf5) our processed Objaverse v1 dataset, which contains ~38k objects segmented by [PartField](https://github.com/nv-tlabs/PartField). We will release all other processed data files soon.
+| Dataset | Task | Part segmentation | Parts | License | Download |
+|:---|:---|:---|:---:|:---|:---:|
+| [IKEA-Manual](https://yunongliu1.github.io/ikea-video-manual/) | Shape assembly | Defined by IKEA manuals. | [2, 19] | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | [293 MB](https://storage.googleapis.com/flow-asm/ikea.hdf5) |
+| [PartNet](https://partnet.cs.stanford.edu/) | Shape assembly | Annotated by human. | [2, 64] | [MIT License](https://mit-license.org/) | [52 GB](https://storage.googleapis.com/flow-asm/partnet.hdf5) |
+| [BreakingBad-Everyday](https://breaking-bad-dataset.github.io/) | Shape assembly | Simulated fractures via [fracture-modes](https://github.com/sgsellan/fracture-modes#dataset). | [2, 49] | [MIT License](https://mit-license.org/) | [27 GB](https://storage.googleapis.com/flow-asm/breaking_bad_vol.hdf5) |
+| [Two-by-Two](https://tea-lab.github.io/TwoByTwo/) | Shape assembly | Annotated by human. | 2 | [MIT License](https://mit-license.org/) | [259 MB](https://storage.googleapis.com/flow-asm/2by2.hdf5) |
+| [ModelNet-40](https://modelnet.cs.princeton.edu/#) | Pairwise registration | Following [Predator](https://github.com/prs-eth/OverlapPredator)'s spliting. | 2 | [Custom](https://modelnet.cs.princeton.edu/#) | [2 GB](https://storage.googleapis.com/flow-asm/modelnet.hdf5) |
+| [TUD-L](https://bop.felk.cvut.cz/datasets/) | Pairwise registration | Real scans with partial observations. | 2 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | [4 GB](https://storage.googleapis.com/flow-asm/tudl.hdf5) |
+| [Objaverse](https://objaverse.allenai.org/) | Overlap prediction | Segmented by [PartField](https://github.com/nv-tlabs/PartField). | [3, 12] | [ODC-BY 1.0](https://opendatacommons.org/licenses/by/1-0/) | [179 GB](https://storage.googleapis.com/rectified-point-flow-data/datasets/objaverse_38k.hdf5) |
 
 ### Custom Datasets
 
@@ -303,7 +296,7 @@ Define parameters for Lightning's [Trainer](https://lightning.ai/docs/pytorch/la
 ## ☑️ Todo List
 - [x] Release model & demo code
 - [x] Release full training code & checkpoints
-- [ ] Release processed dataset files
+- [x] Release processed dataset files
 - [ ] Support running without flash-attn
 - [ ] Online demo
 
