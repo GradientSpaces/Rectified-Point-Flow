@@ -17,7 +17,7 @@
 
 
 ## 🔔 News
-- [*Oct 26, 2025*] Our NeurIPS camera-ready [paper](https://arxiv.org/abs/2506.05282v2) is available! 🎉 
+- [*Oct 26, 2025*] Our NeurIPS camera-ready [Paper](https://arxiv.org/abs/2506.05282v2) and [Slides](assets/RPF_Pre_NeurIPS.pdf) are available! 🎉 
   - We include additional experiments on generalizability and a new **anchor-free** model, which aligns more with practical assembly assumptions.
   - We release **Version 1.1** to support the anchor-free model; see the [PR](https://github.com/GradientSpaces/Rectified-Point-Flow/pull/25) for more details.
 
